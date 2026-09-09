@@ -11,9 +11,9 @@ return [
     'database' => [
         'host' => 'localhost',
         'port' => 3306,
-        'name' => 'YOUR_DATABASE_NAME',
-        'username' => 'YOUR_DATABASE_USER',
-        'password' => 'YOUR_DATABASE_PASSWORD',
+        'name' => 'u428719469_mavrei',
+        'username' => 'u428719469_mavreiuser',
+        'password' => 'M@Vre1!!!!!',
         'charset' => 'utf8mb4',
     ],
 ];
