@@ -9,8 +9,8 @@
     zoom: 11,
     cooperativeGestures: true
   });
-  map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
-  map.addControl(new maplibregl.FullscreenControl(), 'bottom-right');
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 
   let properties = [];
   const markers = new Map();
@@ -130,7 +130,7 @@
       if (properties.length) {
         const bounds = new maplibregl.LngLatBounds();
         properties.forEach(p => bounds.extend([p.longitude, p.latitude]));
-        map.fitBounds(bounds, {padding:70, maxZoom:12});
+        map.fitBounds(bounds, {padding:45, maxZoom:13});
       }
       render();
     })

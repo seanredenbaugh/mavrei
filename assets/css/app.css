@@ -22,3 +22,11 @@
 .property-marker::after{content:none}
 .marker-face{position:absolute;left:0;top:0;width:48px;height:42px;padding:7px;display:grid;place-items:center;border:4px solid var(--marker-border);border-radius:12px;background:var(--marker-color);color:#fff;box-shadow:0 5px 15px rgba(0,0,0,.32);z-index:0}
 .marker-face::after{content:"";position:absolute;left:50%;bottom:-10px;width:14px;height:14px;background:var(--marker-color);border-right:4px solid var(--marker-border);border-bottom:4px solid var(--marker-border);transform:translateX(-50%) rotate(45deg);z-index:-1}
+
+/* Full-width map with the property list floating above it on desktop. */
+@media(min-width:901px){
+  .dashboard{position:relative;display:block}
+  .map-panel{position:absolute;inset:0}
+  .property-panel{position:absolute;top:190px;right:18px;bottom:18px;width:390px;border:1px solid rgba(17,19,24,.12);border-radius:18px;background:rgba(238,241,244,.96);box-shadow:0 16px 42px rgba(14,23,35,.22);z-index:4}
+  .panel-heading{padding:18px 20px 14px}
+}

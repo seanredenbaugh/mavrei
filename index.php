@@ -11,7 +11,7 @@ require __DIR__ . '/app/bootstrap.php';
   <title><?= e(config('app.name')) ?></title>
   <link rel="preconnect" href="https://tiles.openfreemap.org">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-4')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-5')) ?>">
 </head>
 <body>
   <header class="topbar">
@@ -54,6 +54,6 @@ require __DIR__ . '/app/bootstrap.php';
 
   <script>window.MAVREI = {apiUrl: <?= json_encode(base_url('api/properties.php')) ?>};</script>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
-  <script src="<?= e(base_url('assets/js/map.js?v=20260910-2')) ?>" defer></script>
+  <script src="<?= e(base_url('assets/js/map.js?v=20260910-3')) ?>" defer></script>
 </body>
 </html>
