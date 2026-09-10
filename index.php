@@ -16,7 +16,7 @@ require __DIR__ . '/app/bootstrap.php';
 <body>
   <header class="topbar">
     <a class="brand" href="<?= e(base_url()) ?>">
-      <img src="<?= e(base_url('assets/img/mavreilogo.png')) ?>" alt="Maverick Real Estate Investments">
+      <img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png')) ?>" alt="Maverick Real Estate Investments">
     </a>
     <div class="topbar-actions">
       <label class="search"><span>Search</span><input id="property-search" type="search" placeholder="Address or property"></label>
