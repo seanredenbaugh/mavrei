@@ -20,24 +20,45 @@
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
   const markerKey = (p) => p.property_type === 'house' ? p.status : p.property_type;
-  const markerColor = (key) => ({rented:'#294861', available:'#1d8f5a', coming_soon:'#e28a16', sold:'#737983', apartment:'#c89b3c', airbnb:'#bd001c'})[key] || '#111318';
+  const markerPalette = (key) => ({
+    rented: {fill:'#294861', border:'#7891a5'},
+    available: {fill:'#1d8f5a', border:'#79c7a0'},
+    coming_soon: {fill:'#e28a16', border:'#f3c170'},
+    sold: {fill:'#737983', border:'#b9bec6'},
+    apartment: {fill:'#c89b3c', border:'#ead18f'},
+    airbnb: {fill:'#bd001c', border:'#ef7888'}
+  })[key] || {fill:'#111318', border:'#89919c'};
 
   function iconSvg(type, status) {
     if (type === 'apartment') return '<svg viewBox="0 0 24 24"><path d="M5 21V4h10v5h4v12M9 8h2m-2 4h2m-2 4h2m4-3h1m-1 4h1M3 21h18"/></svg>';
     if (type === 'airbnb') return '<svg viewBox="0 0 24 24"><path d="M4 12v8m16-8v8M4 16h16M6 16v-5h5c2 0 3 1 3 3v2M4 10V7h4a3 3 0 0 1 3 3"/></svg>';
-    if (status === 'coming_soon') return '<svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/><path d="m15 5 4 4M17 3l4 4"/></svg>';
+    if (status === 'coming_soon') return '<svg viewBox="0 0 24 24"><path d="M4 15a8 8 0 0 1 16 0M8 15V9m8 6V9M3 15h18v3H3z"/></svg>';
+    if (status === 'sold') return '<svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/><path d="m8 12 2 2 5-5"/></svg>';
     return '<svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/></svg>';
+  }
+
+  function renderLegendMarkers() {
+    document.querySelectorAll('.legend-marker[data-marker-key]').forEach(el => {
+      const key = el.dataset.markerKey;
+      const type = key === 'apartment' ? 'apartment' : key === 'airbnb' ? 'airbnb' : 'house';
+      const palette = markerPalette(key);
+      el.style.setProperty('--marker-color', palette.fill);
+      el.style.setProperty('--marker-border', palette.border);
+      el.innerHTML = iconSvg(type, key);
+    });
   }
 
   function makeMarker(property) {
     const key = markerKey(property);
     const el = document.createElement('button');
     el.className = 'property-marker';
-    el.style.setProperty('--marker-color', markerColor(key));
+    const palette = markerPalette(key);
+    el.style.setProperty('--marker-color', palette.fill);
+    el.style.setProperty('--marker-border', palette.border);
     el.innerHTML = iconSvg(property.property_type, property.status);
     el.setAttribute('aria-label', property.title + ', ' + property.status.replace('_', ' '));
     const popup = new maplibregl.Popup({offset: 24, maxWidth: '310px'}).setHTML(popupHtml(property));
-    const marker = new maplibregl.Marker({element: el, anchor: 'bottom'})
+    const marker = new maplibregl.Marker({element: el, anchor: 'bottom', offset:[0,-10]})
       .setLngLat([property.longitude, property.latitude])
       .setPopup(popup)
       .addTo(map);
@@ -96,6 +117,7 @@
   }));
   search.addEventListener('input', render);
   document.querySelector('#map-style').addEventListener('change', event => map.setStyle(styleBase + event.target.value));
+  renderLegendMarkers();
 
   fetch(window.MAVREI.apiUrl, {headers:{Accept:'application/json'}})
     .then(response => { if (!response.ok) throw new Error('Unable to load properties'); return response.json(); })
@@ -114,4 +136,3 @@
     })
     .catch(error => { list.innerHTML = `<p class="error">${escapeHtml(error.message)}.</p>`; });
 })();
-

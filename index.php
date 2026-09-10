@@ -11,7 +11,7 @@ require __DIR__ . '/app/bootstrap.php';
   <title><?= e(config('app.name')) ?></title>
   <link rel="preconnect" href="https://tiles.openfreemap.org">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-2')) ?>">
 </head>
 <body>
   <header class="topbar">
@@ -35,12 +35,12 @@ require __DIR__ . '/app/bootstrap.php';
       </div>
       <div class="map-legend">
         <strong>Map layers</strong>
-        <label><input type="checkbox" data-filter="rented" checked><i class="dot rented"></i> Rented houses</label>
-        <label><input type="checkbox" data-filter="available" checked><i class="dot available"></i> Available houses</label>
-        <label><input type="checkbox" data-filter="coming_soon" checked><i class="dot coming-soon"></i> Coming soon</label>
-        <label><input type="checkbox" data-filter="sold" checked><i class="dot sold"></i> Sold houses</label>
-        <label><input type="checkbox" data-filter="apartment" checked><i class="dot apartment"></i> Apartments</label>
-        <label><input type="checkbox" data-filter="airbnb" checked><i class="dot airbnb"></i> Airbnb</label>
+        <label><input type="checkbox" data-filter="rented" checked><i class="legend-marker" data-marker-key="rented" aria-hidden="true"></i> Rented houses</label>
+        <label><input type="checkbox" data-filter="available" checked><i class="legend-marker" data-marker-key="available" aria-hidden="true"></i> Available houses</label>
+        <label><input type="checkbox" data-filter="coming_soon" checked><i class="legend-marker" data-marker-key="coming_soon" aria-hidden="true"></i> Coming soon</label>
+        <label><input type="checkbox" data-filter="sold" checked><i class="legend-marker" data-marker-key="sold" aria-hidden="true"></i> Sold houses</label>
+        <label><input type="checkbox" data-filter="apartment" checked><i class="legend-marker" data-marker-key="apartment" aria-hidden="true"></i> Apartments</label>
+        <label><input type="checkbox" data-filter="airbnb" checked><i class="legend-marker" data-marker-key="airbnb" aria-hidden="true"></i> Airbnb</label>
       </div>
     </section>
 
@@ -54,6 +54,6 @@ require __DIR__ . '/app/bootstrap.php';
 
   <script>window.MAVREI = {apiUrl: <?= json_encode(base_url('api/properties.php')) ?>};</script>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
-  <script src="<?= e(base_url('assets/js/map.js')) ?>" defer></script>
+  <script src="<?= e(base_url('assets/js/map.js?v=20260910-1')) ?>" defer></script>
 </body>
 </html>
