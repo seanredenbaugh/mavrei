@@ -9,8 +9,8 @@
     zoom: 11,
     cooperativeGestures: true
   });
-  map.addControl(new maplibregl.NavigationControl(), 'bottom-left');
-  map.addControl(new maplibregl.FullscreenControl(), 'bottom-left');
+  map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+  map.addControl(new maplibregl.FullscreenControl(), 'bottom-right');
 
   let properties = [];
   const markers = new Map();
