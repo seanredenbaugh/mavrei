@@ -11,12 +11,12 @@ require __DIR__ . '/app/bootstrap.php';
   <title><?= e(config('app.name')) ?></title>
   <link rel="preconnect" href="https://tiles.openfreemap.org">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-1')) ?>">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="<?= e(base_url()) ?>">
-      <img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png')) ?>" alt="Maverick Real Estate Investments">
+      <img src="<?= e(base_url('assets/img/mavreilogo.png')) ?>" alt="Maverick Real Estate Investments">
     </a>
     <div class="topbar-actions">
       <label class="search"><span>Search</span><input id="property-search" type="search" placeholder="Address or property"></label>
@@ -57,4 +57,3 @@ require __DIR__ . '/app/bootstrap.php';
   <script src="<?= e(base_url('assets/js/map.js')) ?>" defer></script>
 </body>
 </html>
-
