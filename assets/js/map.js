@@ -55,10 +55,10 @@
     const palette = markerPalette(key);
     el.style.setProperty('--marker-color', palette.fill);
     el.style.setProperty('--marker-border', palette.border);
-    el.innerHTML = iconSvg(property.property_type, property.status);
+    el.innerHTML = `<span class="marker-face">${iconSvg(property.property_type, property.status)}</span>`;
     el.setAttribute('aria-label', property.title + ', ' + property.status.replace('_', ' '));
     const popup = new maplibregl.Popup({offset: 24, maxWidth: '310px'}).setHTML(popupHtml(property));
-    const marker = new maplibregl.Marker({element: el, anchor: 'bottom', offset:[0,-10]})
+    const marker = new maplibregl.Marker({element: el, anchor: 'bottom'})
       .setLngLat([property.longitude, property.latitude])
       .setPopup(popup)
       .addTo(map);
