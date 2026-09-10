@@ -130,7 +130,8 @@
       if (properties.length) {
         const bounds = new maplibregl.LngLatBounds();
         properties.forEach(p => bounds.extend([p.longitude, p.latitude]));
-        map.fitBounds(bounds, {padding:45, maxZoom:13});
+        map.fitBounds(bounds, {padding:45, maxZoom:13, duration:0});
+        map.setZoom(map.getZoom() - 1);
       }
       render();
     })
