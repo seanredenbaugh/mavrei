@@ -3,3 +3,6 @@
 @media(max-width:900px){.topbar{height:auto;align-items:flex-start;flex-wrap:wrap}.brand{width:220px}.topbar-actions{width:100%;align-items:end}.search{flex:1}.search input{width:100%}.dashboard{height:auto;min-height:calc(100vh - 140px);grid-template-columns:1fr;grid-template-rows:62vh auto}.property-panel{border-left:0;border-top:1px solid var(--line);max-height:none}.property-list{grid-template-columns:repeat(auto-fit,minmax(290px,1fr));overflow:visible}.map-stats div{min-width:95px;padding:11px}.map-legend{display:none}}
 @media(max-width:560px){.topbar{padding:10px 14px}.brand{margin:auto}.style-select span{display:none}.admin-link{padding:0 12px}.dashboard{grid-template-rows:58vh auto}.map-stats{top:12px}.map-stats div{min-width:82px;padding:9px}.map-stats strong{font-size:19px}.property-list{grid-template-columns:1fr}}
 
+/* Larger header logo: 25% taller with less surrounding padding. */
+@media(min-width:901px){.topbar{height:88px;padding-top:5px;padding-bottom:5px}.brand img{height:78px}.dashboard{height:calc(100vh - 88px)}}
+@media(max-width:900px){.brand img{height:78px}}
