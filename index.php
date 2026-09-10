@@ -11,7 +11,7 @@ require __DIR__ . '/app/bootstrap.php';
   <title><?= e(config('app.name')) ?></title>
   <link rel="preconnect" href="https://tiles.openfreemap.org">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-7')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-8')) ?>">
 </head>
 <body>
   <header class="topbar">
