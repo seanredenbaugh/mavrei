@@ -99,6 +99,25 @@ function require_admin(): void
         header('Location: ' . base_url('admin/login.php'));
         exit;
     }
+    ensure_property_schema();
+}
+
+function ensure_property_schema(): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    $checked = true;
+
+    foreach (['property_type', 'status'] as $column) {
+        $stmt = db()->query("SHOW COLUMNS FROM properties LIKE " . db()->quote($column));
+        $definition = $stmt->fetch();
+        if ($definition && str_starts_with(strtolower((string) $definition['Type']), 'enum(')) {
+            $default = $column === 'property_type' ? 'house' : 'rented';
+            db()->exec("ALTER TABLE properties MODIFY {$column} VARCHAR(30) NOT NULL DEFAULT " . db()->quote($default));
+        }
+    }
 }
 
 function site_setting(string $key, string $default = ''): string

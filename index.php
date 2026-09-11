@@ -11,7 +11,7 @@ require __DIR__ . '/app/bootstrap.php';
   <title><?= e(config('app.name')) ?></title>
   <link rel="preconnect" href="https://tiles.openfreemap.org">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-8')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260911-1')) ?>">
 </head>
 <body>
   <header class="topbar">
@@ -40,6 +40,7 @@ require __DIR__ . '/app/bootstrap.php';
         <label><input type="checkbox" data-filter="sold" checked><i class="legend-marker" data-marker-key="sold" aria-hidden="true"></i> Sold houses</label>
         <label><input type="checkbox" data-filter="apartment" checked><i class="legend-marker" data-marker-key="apartment" aria-hidden="true"></i> Apartments</label>
         <label><input type="checkbox" data-filter="airbnb" checked><i class="legend-marker" data-marker-key="airbnb" aria-hidden="true"></i> Airbnb</label>
+        <label><input type="checkbox" data-filter="headquarters" checked><i class="legend-marker" data-marker-key="headquarters" aria-hidden="true"></i> Headquarters</label>
       </div>
     </section>
 
@@ -53,6 +54,6 @@ require __DIR__ . '/app/bootstrap.php';
 
   <script>window.MAVREI = {apiUrl: <?= json_encode(base_url('api/properties.php')) ?>, mapStyle: <?= json_encode(site_setting('map_style', 'liberty')) ?>};</script>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
-  <script src="<?= e(base_url('assets/js/map.js?v=20260911-1')) ?>" defer></script>
+  <script src="<?= e(base_url('assets/js/map.js?v=20260911-2')) ?>" defer></script>
 </body>
 </html>
