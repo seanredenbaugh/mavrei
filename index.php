@@ -20,7 +20,6 @@ require __DIR__ . '/app/bootstrap.php';
     </a>
     <div class="topbar-actions">
       <label class="search"><span>Search</span><input id="property-search" type="search" placeholder="Address or property"></label>
-      <label class="style-select"><span>Map theme</span><select id="map-style"><option value="liberty">Liberty</option><option value="positron">Light</option><option value="dark">Dark</option><option value="bright">Bright</option></select></label>
       <a class="admin-link" href="<?= e(base_url('admin/')) ?>">Admin</a>
     </div>
   </header>
@@ -52,8 +51,8 @@ require __DIR__ . '/app/bootstrap.php';
     </aside>
   </main>
 
-  <script>window.MAVREI = {apiUrl: <?= json_encode(base_url('api/properties.php')) ?>};</script>
+  <script>window.MAVREI = {apiUrl: <?= json_encode(base_url('api/properties.php')) ?>, mapStyle: <?= json_encode(site_setting('map_style', 'liberty')) ?>};</script>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
-  <script src="<?= e(base_url('assets/js/map.js?v=20260910-7')) ?>" defer></script>
+  <script src="<?= e(base_url('assets/js/map.js?v=20260911-1')) ?>" defer></script>
 </body>
 </html>

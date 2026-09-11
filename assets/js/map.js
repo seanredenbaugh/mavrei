@@ -2,11 +2,13 @@
   'use strict';
 
   const styleBase = 'https://tiles.openfreemap.org/styles/';
+  const selectedStyle = ['liberty','positron','bright','dark','fiord','3d'].includes(window.MAVREI.mapStyle) ? window.MAVREI.mapStyle : 'liberty';
   const map = new maplibregl.Map({
     container: 'map',
-    style: styleBase + 'liberty',
+    style: styleBase + selectedStyle,
     center: [-87.56, 37.98],
     zoom: 11,
+    pitch: selectedStyle === '3d' ? 45 : 0,
     cooperativeGestures: true
   });
   map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
@@ -116,7 +118,6 @@
     render();
   }));
   search.addEventListener('input', render);
-  document.querySelector('#map-style').addEventListener('change', event => map.setStyle(styleBase + event.target.value));
   renderLegendMarkers();
 
   fetch(window.MAVREI.apiUrl, {headers:{Accept:'application/json'}})

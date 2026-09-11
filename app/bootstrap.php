@@ -101,6 +101,18 @@ function require_admin(): void
     }
 }
 
+function site_setting(string $key, string $default = ''): string
+{
+    try {
+        $stmt = db()->prepare('SELECT setting_value FROM site_settings WHERE setting_key = ?');
+        $stmt->execute([$key]);
+        $value = $stmt->fetchColumn();
+        return is_string($value) && $value !== '' ? $value : $default;
+    } catch (PDOException) {
+        return $default;
+    }
+}
+
 function status_label(string $status): string
 {
     return match ($status) {
@@ -117,4 +129,3 @@ function type_label(string $type): string
         default => ucwords(str_replace('_', ' ', $type)),
     };
 }
-
