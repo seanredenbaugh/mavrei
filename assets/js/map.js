@@ -73,7 +73,8 @@
   function popupHtml(p) {
     const image = p.featured_photo ? `<img class="popup-image" src="${escapeHtml(p.featured_photo)}" alt="">` : '';
     const label = p.property_type === 'headquarters' ? 'Headquarters' : p.status.replace('_', ' ');
-    return `<article class="map-popup">${image}<div><span class="status-pill ${escapeHtml(markerKey(p))}">${escapeHtml(label)}</span><h2>${escapeHtml(p.title)}</h2><p>${escapeHtml(p.city)}, ${escapeHtml(p.state)}</p><a href="${escapeHtml(p.detail_url)}">View location</a></div></article>`;
+    const detailLink = p.property_type === 'headquarters' ? '' : `<a href="${escapeHtml(p.detail_url)}">View property</a>`;
+    return `<article class="map-popup">${image}<div><span class="status-pill ${escapeHtml(markerKey(p))}">${escapeHtml(label)}</span><h2>${escapeHtml(p.title)}</h2><p>${escapeHtml(p.city)}, ${escapeHtml(p.state)}</p>${detailLink}</div></article>`;
   }
 
   function isVisible(p) {

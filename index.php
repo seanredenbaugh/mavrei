@@ -54,6 +54,6 @@ require __DIR__ . '/app/bootstrap.php';
 
   <script>window.MAVREI = {apiUrl: <?= json_encode(base_url('api/properties.php')) ?>, mapStyle: <?= json_encode(site_setting('map_style', 'liberty')) ?>};</script>
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
-  <script src="<?= e(base_url('assets/js/map.js?v=20260911-2')) ?>" defer></script>
+  <script src="<?= e(base_url('assets/js/map.js?v=20260911-3')) ?>" defer></script>
 </body>
 </html>
