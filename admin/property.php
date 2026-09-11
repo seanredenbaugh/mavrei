@@ -24,7 +24,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
   } catch(Throwable $exception) {
    if(db()->inTransaction()) db()->rollBack();
    error_log('Property save failed: '.$exception->getMessage());
-   $error='Save failed: '.$exception->getMessage();
+   $error='The property could not be saved. Please try again. If this continues, check the server error log.';
   }
  }
  $property=array_merge($property,$_POST);

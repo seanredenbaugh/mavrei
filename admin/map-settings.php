@@ -34,7 +34,7 @@ try {
     }
 } catch (Throwable $exception) {
     error_log('Map settings failed: ' . $exception->getMessage());
-    $error = 'Unable to save map settings: ' . $exception->getMessage();
+    $error = 'Unable to save map settings. Please try again. If this continues, check the server error log.';
 }
 
 $current = site_setting('map_style', 'liberty');
@@ -55,7 +55,7 @@ if (!array_key_exists($current, $styles)) {
 <body>
   <header class="admin-header">
     <a class="logo-home" href="<?= e(base_url()) ?>"><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick"></a>
-    <nav><a href="<?= e(base_url('admin/')) ?>">Properties</a><a href="<?= e(base_url()) ?>">View map</a><a href="<?= e(base_url('admin/logout.php')) ?>">Sign out</a></nav>
+    <nav><a href="<?= e(base_url('admin/')) ?>">Properties</a><a href="<?= e(base_url()) ?>">View map</a><form method="post" action="<?= e(base_url('admin/logout.php')) ?>"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><button type="submit">Sign out</button></form></nav>
   </header>
   <main class="admin-wrap map-settings-wrap">
     <div class="admin-title"><div><p class="eyebrow">Portfolio administration</p><h1>Map theme</h1></div></div>

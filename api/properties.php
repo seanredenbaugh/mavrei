@@ -14,16 +14,24 @@ $sql = "SELECT p.id, p.slug, p.title, p.property_type, p.status,
         WHERE p.is_visible = 1
         ORDER BY p.sort_order, p.title";
 
-$properties = db()->query($sql)->fetchAll();
-foreach ($properties as &$property) {
-    $property['id'] = (int) $property['id'];
-    $property['latitude'] = (float) $property['latitude'];
-    $property['longitude'] = (float) $property['longitude'];
-    $property['photo_count'] = (int) $property['photo_count'];
-    $property['detail_url'] = base_url('property.php?id=' . $property['id']);
-    if ($property['featured_photo']) {
-        $property['featured_photo'] = base_url($property['featured_photo']);
+try {
+    $properties = db()->query($sql)->fetchAll();
+    foreach ($properties as &$property) {
+        $property['id'] = (int) $property['id'];
+        $property['latitude'] = (float) $property['latitude'];
+        $property['longitude'] = (float) $property['longitude'];
+        $property['photo_count'] = (int) $property['photo_count'];
+        $property['detail_url'] = base_url('property.php?id=' . $property['id']);
+        if ($property['featured_photo']) {
+            $property['featured_photo'] = base_url($property['featured_photo']);
+        }
     }
-}
 
-echo json_encode(['properties' => $properties], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    echo json_encode(['properties' => $properties], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+} catch (Throwable $error) {
+    error_log('Property API error: ' . $error->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'error' => config('app.debug') ? $error->getMessage() : 'The property database could not be loaded.',
+    ], JSON_UNESCAPED_SLASHES);
+}
