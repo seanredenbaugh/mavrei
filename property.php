@@ -20,10 +20,10 @@ $photos = $photoStmt->fetchAll();
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= e($property['title']) ?> | <?= e(config('app.name')) ?></title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-1')) ?>">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/property.css?v=20260910-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/property.css?v=20260911-1')) ?>">
 </head>
 <body class="detail-page">
-  <header class="detail-header"><a href="<?= e(base_url()) ?>">← Back to map</a><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick Real Estate Investments"><?php if (is_admin()): ?><a href="<?= e(base_url('admin/property.php?id=' . $property['id'])) ?>">Edit property</a><?php else: ?><span></span><?php endif; ?></header>
+  <header class="detail-header"><a href="<?= e(base_url()) ?>">← Back to map</a><a class="logo-home" href="<?= e(base_url()) ?>"><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick Real Estate Investments"></a><?php if (is_admin()): ?><a href="<?= e(base_url('admin/property.php?id=' . $property['id'])) ?>">Edit property</a><?php else: ?><span></span><?php endif; ?></header>
   <main class="detail-wrap">
     <div class="detail-title"><div><span class="status-pill <?= e($property['property_type'] === 'house' ? $property['status'] : $property['property_type']) ?>"><?= e(status_label($property['status'])) ?></span><p class="eyebrow"><?= e(type_label($property['property_type'])) ?></p><h1><?= e($property['title']) ?></h1><p><?= e($property['address_line1']) ?>, <?= e($property['city']) ?>, <?= e($property['state']) ?> <?= e($property['postal_code']) ?></p></div></div>
     <?php if ($photos): ?><section class="gallery"><?php foreach ($photos as $index => $photo): ?><button class="gallery-photo<?= $index === 0 ? ' primary' : '' ?>" data-full="<?= e(base_url($photo['file_path'])) ?>"><img src="<?= e(base_url($photo['file_path'])) ?>" alt="<?= e($photo['alt_text'] ?: $property['title']) ?>" loading="<?= $index > 3 ? 'lazy' : 'eager' ?>"></button><?php endforeach; ?></section><?php endif; ?>
