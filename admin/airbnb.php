@@ -335,7 +335,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       <details class="add-panel"><summary>Add rehab item</summary>
         <form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="save_rehab">
           <label>Area<input name="area" list="area-list" required></label><label class="wide">Item<input name="item_name" required></label>
-          <label>Quantity<input type="number" step="1" min="0.01" name="quantity" value="1" required></label><label>Price each<input type="number" step="0.01" min="0" name="unit_price"></label>
+          <label>Quantity<input type="number" step="1" min="1" name="quantity" value="1" required></label><label>Price each<input type="number" step="0.01" min="0" name="unit_price"></label>
           <label>Status<select name="status"><?php foreach ($statusLabels as $v=>$l): ?><option value="<?=e($v)?>"><?=e($l)?></option><?php endforeach; ?></select></label>
           <label>Vendor<input name="vendor"></label><label>Date<input type="date" name="purchased_on"></label><label class="wide">Notes<input name="notes"></label><button>Save item</button>
         </form>
@@ -351,7 +351,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
           <span><?= number_format((float)$item['quantity'], (float)$item['quantity'] == floor((float)$item['quantity']) ? 0 : 2) ?></span><span><?= $item['unit_price']!==null ? money((float)$item['unit_price']) : '—' ?></span><span><strong><?= $item['actual_cost']!==null ? money((float)$item['actual_cost']) : '—' ?></strong></span>
           <details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_rehab"><input type="hidden" name="id" value="<?=$item['id']?>">
             <label>Area<input name="area" value="<?=e($item['area'])?>" list="area-list" required></label><label class="wide">Item<input name="item_name" value="<?=e($item['item_name'])?>" required></label>
-            <label>Quantity<input type="number" step="1" min="0.01" name="quantity" value="<?=e((string)$item['quantity'])?>" required></label><label>Price each<input type="number" step="0.01" min="0" name="unit_price" value="<?=e((string)$item['unit_price'])?>"></label>
+            <label>Quantity<input type="number" step="1" min="1" name="quantity" value="<?=e((string)$item['quantity'])?>" required></label><label>Price each<input type="number" step="0.01" min="0" name="unit_price" value="<?=e((string)$item['unit_price'])?>"></label>
             <label>Status<select name="status"><?php foreach($statusLabels as $v=>$l):?><option value="<?=e($v)?>" <?=$item['status']===$v?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></label>
             <label>Vendor<input name="vendor" value="<?=e($item['vendor'])?>"></label><label>Date<input type="date" name="purchased_on" value="<?=e((string)$item['purchased_on'])?>"></label><label class="wide">Notes<input name="notes" value="<?=e($item['notes'])?>"></label><button>Save</button>
           </form><form method="post" class="delete-form" onsubmit="return confirm('Delete this rehab item?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_rehab"><input type="hidden" name="id" value="<?=$item['id']?>"><button>Delete</button></form></details>
