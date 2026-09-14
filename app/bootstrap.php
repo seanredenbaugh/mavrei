@@ -314,7 +314,7 @@ function status_label(string $status): string
 function type_label(string $type): string
 {
     return match ($type) {
-        'airbnb' => 'Airbnb',
+        'airbnb' => 'Vacation Rental',
         'apartment' => 'Apartment',
         default => ucwords(str_replace('_', ' ', $type)),
     };

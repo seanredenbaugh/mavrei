@@ -39,7 +39,7 @@ require __DIR__ . '/app/bootstrap.php';
         <label><input type="checkbox" data-filter="coming_soon" checked><i class="legend-marker" data-marker-key="coming_soon" aria-hidden="true"></i> Coming soon</label>
         <label><input type="checkbox" data-filter="sold" checked><i class="legend-marker" data-marker-key="sold" aria-hidden="true"></i> Sold houses</label>
         <label><input type="checkbox" data-filter="apartment" checked><i class="legend-marker" data-marker-key="apartment" aria-hidden="true"></i> Apartments</label>
-        <label><input type="checkbox" data-filter="airbnb" checked><i class="legend-marker" data-marker-key="airbnb" aria-hidden="true"></i> Airbnb</label>
+        <label><input type="checkbox" data-filter="airbnb" checked><i class="legend-marker" data-marker-key="airbnb" aria-hidden="true"></i> Vacation rental</label>
         <label><input type="checkbox" data-filter="headquarters" checked><i class="legend-marker" data-marker-key="headquarters" aria-hidden="true"></i> Headquarters</label>
       </div>
     </section>
