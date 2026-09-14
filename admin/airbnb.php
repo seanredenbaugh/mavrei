@@ -10,7 +10,8 @@ function ensure_airbnb_schema(): void
         property_id INT UNSIGNED NOT NULL,
         area VARCHAR(80) NOT NULL,
         item_name VARCHAR(190) NOT NULL,
-        estimated_cost DECIMAL(10,2) NULL,
+        quantity DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+        unit_price DECIMAL(10,2) NULL,
         actual_cost DECIMAL(10,2) NULL,
         status VARCHAR(30) NOT NULL DEFAULT 'planned',
         vendor VARCHAR(120) NULL,
@@ -22,6 +23,16 @@ function ensure_airbnb_schema(): void
         CONSTRAINT fk_airbnb_rehab_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
         INDEX idx_airbnb_rehab (property_id, area, sort_order)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $rehabColumns = db()->query('SHOW COLUMNS FROM airbnb_rehab_items')->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('quantity', $rehabColumns, true)) {
+        db()->exec('ALTER TABLE airbnb_rehab_items ADD quantity DECIMAL(10,2) NOT NULL DEFAULT 1.00 AFTER item_name');
+    }
+    if (!in_array('unit_price', $rehabColumns, true)) {
+        db()->exec('ALTER TABLE airbnb_rehab_items ADD unit_price DECIMAL(10,2) NULL AFTER quantity');
+    }
+    db()->exec('UPDATE airbnb_rehab_items SET quantity = 1.00 WHERE quantity IS NULL OR quantity <= 0');
+    db()->exec('UPDATE airbnb_rehab_items SET unit_price = actual_cost WHERE unit_price IS NULL AND actual_cost IS NOT NULL');
 
     db()->exec("CREATE TABLE IF NOT EXISTS airbnb_recurring_costs (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -148,10 +159,10 @@ function seed_first_airbnb(int $propertyId): void
 
     db()->beginTransaction();
     try {
-        $stmt = db()->prepare('INSERT INTO airbnb_rehab_items (property_id, area, item_name, estimated_cost, actual_cost, status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt = db()->prepare('INSERT INTO airbnb_rehab_items (property_id, area, item_name, quantity, unit_price, actual_cost, status, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
         foreach ($rehab as $order => $item) {
             $actual = $item[3] ?? null;
-            $stmt->execute([$propertyId, $item[0], $item[1], $item[2] ?? null, $actual, $actual === null ? 'planned' : 'purchased', $order + 1]);
+            $stmt->execute([$propertyId, $item[0], $item[1], 1, $actual, $actual, $actual === null ? 'planned' : 'purchased', $order + 1]);
         }
         $stmt = db()->prepare('INSERT INTO airbnb_recurring_costs (property_id, category, name, typical_amount, frequency, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
         foreach ($recurring as $order => $item) $stmt->execute([$propertyId, $item[0], $item[1], $item[2], 'monthly', $order + 1]);
@@ -198,13 +209,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = substr(trim((string) ($_POST['item_name'] ?? '')), 0, 190);
             $status = (string) ($_POST['status'] ?? 'planned');
             if ($area === '' || $name === '' || !in_array($status, ['planned','in_progress','purchased','completed','skipped'], true)) throw new RuntimeException('Enter an area, item, and valid status.');
-            $values = [$area, $name, nullable_money('estimated_cost'), nullable_money('actual_cost'), $status, substr(trim((string) ($_POST['vendor'] ?? '')), 0, 120) ?: null, nullable_date('purchased_on'), trim((string) ($_POST['notes'] ?? '')) ?: null];
+            $quantityInput = trim((string) ($_POST['quantity'] ?? '1'));
+            if (!is_numeric($quantityInput) || (float) $quantityInput <= 0) throw new RuntimeException('Quantity must be greater than zero.');
+            $quantity = number_format((float) $quantityInput, 2, '.', '');
+            $unitPrice = nullable_money('unit_price');
+            $totalCost = $unitPrice === null ? null : number_format((float) $quantity * (float) $unitPrice, 2, '.', '');
+            $values = [$area, $name, $quantity, $unitPrice, $totalCost, $status, substr(trim((string) ($_POST['vendor'] ?? '')), 0, 120) ?: null, nullable_date('purchased_on'), trim((string) ($_POST['notes'] ?? '')) ?: null];
             if ($id) {
                 $values[] = $id; $values[] = $propertyId;
-                db()->prepare('UPDATE airbnb_rehab_items SET area=?, item_name=?, estimated_cost=?, actual_cost=?, status=?, vendor=?, purchased_on=?, notes=? WHERE id=? AND property_id=?')->execute($values);
+                db()->prepare('UPDATE airbnb_rehab_items SET area=?, item_name=?, quantity=?, unit_price=?, actual_cost=?, status=?, vendor=?, purchased_on=?, notes=? WHERE id=? AND property_id=?')->execute($values);
             } else {
                 array_unshift($values, $propertyId);
-                db()->prepare('INSERT INTO airbnb_rehab_items (property_id,area,item_name,estimated_cost,actual_cost,status,vendor,purchased_on,notes) VALUES (?,?,?,?,?,?,?,?,?)')->execute($values);
+                db()->prepare('INSERT INTO airbnb_rehab_items (property_id,area,item_name,quantity,unit_price,actual_cost,status,vendor,purchased_on,notes) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute($values);
             }
         } elseif ($action === 'delete_rehab') {
             $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT) ?: 0;
@@ -270,9 +286,9 @@ $stmt = db()->prepare('SELECT * FROM airbnb_recurring_costs WHERE property_id=? 
 $stmt = db()->prepare('SELECT * FROM airbnb_monthly_expenses WHERE property_id=? AND expense_month=? ORDER BY category,description'); $stmt->execute([$propertyId,$monthDate]); $expenses = $stmt->fetchAll();
 $stmt = db()->prepare('SELECT * FROM airbnb_reference_notes WHERE property_id=? ORDER BY category,sort_order,id'); $stmt->execute([$propertyId]); $referenceNotes = $stmt->fetchAll();
 
-$rehabEstimated = array_sum(array_map(fn($i)=>(float)($i['estimated_cost'] ?? 0), $rehab));
 $rehabActual = array_sum(array_map(fn($i)=>(float)($i['actual_cost'] ?? 0), $rehab));
 $rehabDone = count(array_filter($rehab, fn($i)=>in_array($i['status'], ['purchased','completed'], true)));
+$rehabRemaining = count(array_filter($rehab, fn($i)=>!in_array($i['status'], ['purchased','completed','skipped'], true)));
 $monthlyBaseline = 0.0;
 foreach ($recurring as $cost) if ($cost['active'] && $cost['typical_amount'] !== null) {
     $amount = (float) $cost['typical_amount'];
@@ -290,7 +306,8 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Vacation rental costs | <?= e($property['title']) ?></title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin.css?v=20260914-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin.css?v=20260914-2')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v22.css?v=20260914-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -304,7 +321,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 
   <section class="metric-grid">
     <article><span>Rehab spent</span><strong><?= money($rehabActual) ?></strong><small><?= $rehabDone ?> of <?= count($rehab) ?> items purchased or complete</small></article>
-    <article><span>Rehab budget</span><strong><?= $rehabEstimated ? money($rehabEstimated) : 'Not entered' ?></strong><small><?= $rehabEstimated ? money($rehabEstimated - $rehabActual) . ' remaining' : 'Add estimates as you plan purchases' ?></small></article>
+    <article><span>Rehab progress</span><strong><?= $rehabDone ?> / <?= count($rehab) ?></strong><small><?= $rehabRemaining ?> item<?= $rehabRemaining === 1 ? '' : 's' ?> still planned or in progress</small></article>
     <article><span>Recurring monthly</span><strong><?= money($monthlyBaseline) ?></strong><small>Monthly equivalent of active costs</small></article>
     <article><span><?= e(date('F Y', strtotime($monthDate))) ?></span><strong><?= money($monthActual) ?></strong><small><?= $monthPending ?> amount<?= $monthPending === 1 ? '' : 's' ?> still pending</small></article>
   </section>
@@ -312,27 +329,27 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <nav class="section-nav"><a href="#rehab">Setup & rehab</a><a href="#monthly">Monthly costs</a><a href="#reference">Property notes</a></nav>
 
   <section id="rehab" class="tracker-section">
-    <div class="section-heading"><div><p class="eyebrow">One-time costs</p><h2>Setup and rehab</h2><p>Track planned work and compare your estimated cost with what you actually spend.</p></div>
+    <div class="section-heading"><div><p class="eyebrow">One-time costs</p><h2>Setup and rehab</h2><p>Enter a quantity and price. The tracker calculates each cost and room total automatically.</p></div>
       <details class="add-panel"><summary>Add rehab item</summary>
         <form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="save_rehab">
           <label>Area<input name="area" list="area-list" required></label><label class="wide">Item<input name="item_name" required></label>
-          <label>Estimate<input type="number" step="0.01" min="0" name="estimated_cost"></label><label>Actual cost<input type="number" step="0.01" min="0" name="actual_cost"></label>
+          <label>Quantity<input type="number" step="1" min="0.01" name="quantity" value="1" required></label><label>Price each<input type="number" step="0.01" min="0" name="unit_price"></label>
           <label>Status<select name="status"><?php foreach ($statusLabels as $v=>$l): ?><option value="<?=e($v)?>"><?=e($l)?></option><?php endforeach; ?></select></label>
           <label>Vendor<input name="vendor"></label><label>Date<input type="date" name="purchased_on"></label><label class="wide">Notes<input name="notes"></label><button>Save item</button>
         </form>
       </details>
     </div>
     <datalist id="area-list"><?php foreach ($areas as $area): ?><option value="<?= e($area) ?>"><?php endforeach; ?></datalist>
-    <?php foreach ($areas as $area): $areaItems=array_values(array_filter($rehab,fn($i)=>$i['area']===$area)); ?>
-      <div class="cost-group"><h3><?= e($area) ?><span><?= count($areaItems) ?> items</span></h3>
-        <div class="cost-table"><div class="cost-row table-head"><span>Item</span><span>Status</span><span>Estimate</span><span>Actual</span><span></span></div>
-        <?php foreach ($areaItems as $item): ?><div class="cost-row">
+    <?php foreach ($areas as $area): $areaItems=array_values(array_filter($rehab,fn($i)=>$i['area']===$area)); $areaTotal=array_sum(array_map(fn($i)=>(float)($i['actual_cost']??0),$areaItems)); ?>
+      <div class="cost-group"><h3><strong><?= e($area) ?></strong><span><?= count($areaItems) ?> items · <?= money($areaTotal) ?> total</span></h3>
+        <div class="cost-table"><div class="cost-row table-head"><span>Item</span><span>Status</span><span>Qty</span><span>Price</span><span>Cost</span><span></span></div>
+        <?php foreach ($areaItems as $item): ?><div class="cost-row is-<?=e($item['status'])?>">
           <span><strong><?= e($item['item_name']) ?></strong><?php if($item['vendor']||$item['purchased_on']):?><small><?=e(trim(($item['vendor']?:'').' '.($item['purchased_on']?:'')))?></small><?php endif;?></span>
           <span><i class="status-dot <?=e($item['status'])?>"></i><?=e($statusLabels[$item['status']]??$item['status'])?></span>
-          <span><?= $item['estimated_cost']!==null ? money((float)$item['estimated_cost']) : '—' ?></span><span><?= $item['actual_cost']!==null ? money((float)$item['actual_cost']) : '—' ?></span>
+          <span><?= number_format((float)$item['quantity'], (float)$item['quantity'] == floor((float)$item['quantity']) ? 0 : 2) ?></span><span><?= $item['unit_price']!==null ? money((float)$item['unit_price']) : '—' ?></span><span><strong><?= $item['actual_cost']!==null ? money((float)$item['actual_cost']) : '—' ?></strong></span>
           <details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_rehab"><input type="hidden" name="id" value="<?=$item['id']?>">
             <label>Area<input name="area" value="<?=e($item['area'])?>" list="area-list" required></label><label class="wide">Item<input name="item_name" value="<?=e($item['item_name'])?>" required></label>
-            <label>Estimate<input type="number" step="0.01" min="0" name="estimated_cost" value="<?=e((string)$item['estimated_cost'])?>"></label><label>Actual cost<input type="number" step="0.01" min="0" name="actual_cost" value="<?=e((string)$item['actual_cost'])?>"></label>
+            <label>Quantity<input type="number" step="1" min="0.01" name="quantity" value="<?=e((string)$item['quantity'])?>" required></label><label>Price each<input type="number" step="0.01" min="0" name="unit_price" value="<?=e((string)$item['unit_price'])?>"></label>
             <label>Status<select name="status"><?php foreach($statusLabels as $v=>$l):?><option value="<?=e($v)?>" <?=$item['status']===$v?'selected':''?>><?=e($l)?></option><?php endforeach;?></select></label>
             <label>Vendor<input name="vendor" value="<?=e($item['vendor'])?>"></label><label>Date<input type="date" name="purchased_on" value="<?=e((string)$item['purchased_on'])?>"></label><label class="wide">Notes<input name="notes" value="<?=e($item['notes'])?>"></label><button>Save</button>
           </form><form method="post" class="delete-form" onsubmit="return confirm('Delete this rehab item?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_rehab"><input type="hidden" name="id" value="<?=$item['id']?>"><button>Delete</button></form></details>
