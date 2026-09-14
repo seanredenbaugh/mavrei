@@ -11,7 +11,7 @@ $properties = db()->query("SELECT id,title,property_type,status,city,state,rent_
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Properties | Admin</title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
-  <style>.admin-actions{display:flex;gap:12px}.admin-actions a:last-child{color:#294861}</style>
+  <style>.admin-actions{white-space:nowrap}.admin-actions a+a{margin-left:12px}.admin-actions a:last-child{color:#294861}</style>
 </head>
 <body>
 <header class="admin-header">
@@ -39,7 +39,7 @@ $properties = db()->query("SELECT id,title,property_type,status,city,state,rent_
       <td><?php if ($p['nightly_rate']): ?>$<?= number_format((float) $p['nightly_rate'], 2) ?>/night<?php elseif ($p['rent_amount']): ?>$<?= number_format((float) $p['rent_amount'], 2) ?>/month<?php else: ?>—<?php endif; ?></td>
       <td><?= $p['zillow_value'] ? '$' . number_format((float) $p['zillow_value']) : '—' ?></td>
       <td><?= $p['is_visible'] ? 'Yes' : 'No' ?></td>
-      <td class="admin-actions"><a href="<?= e(base_url('admin/property.php?id=' . $p['id'])) ?>">Edit</a><?php if ($p['property_type'] === 'airbnb'): ?><a href="<?= e(base_url('admin/airbnb.php?property_id=' . $p['id'])) ?>">Rental costs</a><?php endif; ?></td>
+      <td class="admin-actions"><a href="<?= e(base_url('admin/property.php?id=' . $p['id'])) ?>">Edit</a><?php if ($p['property_type'] === 'airbnb'): ?><a href="<?= e(base_url('admin/airbnb.php?property_id=' . $p['id'])) ?>">COSTS</a><?php endif; ?></td>
     </tr><?php endforeach; ?></tbody>
   </table></div>
 </main>
