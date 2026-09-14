@@ -308,6 +308,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin.css?v=20260914-2')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v22.css?v=20260914-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v23.css?v=20260914-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -341,7 +342,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     </div>
     <datalist id="area-list"><?php foreach ($areas as $area): ?><option value="<?= e($area) ?>"><?php endforeach; ?></datalist>
     <?php foreach ($areas as $area): $areaItems=array_values(array_filter($rehab,fn($i)=>$i['area']===$area)); $areaTotal=array_sum(array_map(fn($i)=>(float)($i['actual_cost']??0),$areaItems)); ?>
-      <div class="cost-group"><h3><strong><?= e($area) ?></strong><span><?= count($areaItems) ?> items · <?= money($areaTotal) ?> total</span></h3>
+      <div class="cost-group" data-area="<?= e($area) ?>"><h3><strong><?= e($area) ?></strong><span><?= count($areaItems) ?> items · <?= money($areaTotal) ?> total</span></h3>
         <div class="cost-table"><div class="cost-row table-head"><span>Item</span><span>Status</span><span>Qty</span><span>Price</span><span>Cost</span><span></span></div>
         <?php foreach ($areaItems as $item): ?><div class="cost-row is-<?=e($item['status'])?>">
           <span><strong><?= e($item['item_name']) ?></strong><?php if($item['vendor']||$item['purchased_on']):?><small><?=e(trim(($item['vendor']?:'').' '.($item['purchased_on']?:'')))?></small><?php endif;?></span>
@@ -381,5 +382,55 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     <div class="reference-grid"><?php foreach($referenceNotes as $note):?><article><small><?=e($note['category'])?></small><strong><?=e($note['label'])?></strong><span><?=e($note['note_value'])?></span><details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_note"><input type="hidden" name="id" value="<?=$note['id']?>"><label>Category<input name="category" value="<?=e($note['category'])?>" required></label><label>Label<input name="label" value="<?=e($note['label'])?>" required></label><label class="wide">Value<input name="note_value" value="<?=e($note['note_value'])?>" required></label><button>Save</button></form><form method="post" class="delete-form" onsubmit="return confirm('Delete this note?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_note"><input type="hidden" name="id" value="<?=$note['id']?>"><button>Delete</button></form></details></article><?php endforeach;?></div>
   </section>
 </main>
+<script>
+(() => {
+  const prefix = 'mavrei-vacation-rental-<?= (int) $propertyId ?>:';
+  const readState = key => { try { return localStorage.getItem(prefix + key); } catch (error) { return null; } };
+  const saveState = (key, value) => { try { localStorage.setItem(prefix + key, value); } catch (error) {} };
+
+  document.querySelectorAll('.tracker-section').forEach(section => {
+    const heading = section.querySelector(':scope > .section-heading');
+    if (!heading) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'collapse-toggle';
+    const apply = (collapsed, remember = true) => {
+      section.classList.toggle('is-collapsed', collapsed);
+      button.setAttribute('aria-expanded', String(!collapsed));
+      button.innerHTML = `<span aria-hidden="true">${collapsed ? '＋' : '−'}</span>${collapsed ? 'Expand' : 'Collapse'}`;
+      if (remember) saveState('section:' + section.id, collapsed ? 'closed' : 'open');
+    };
+    button.addEventListener('click', () => apply(!section.classList.contains('is-collapsed')));
+    heading.append(button);
+    apply(readState('section:' + section.id) === 'closed', false);
+  });
+
+  document.querySelectorAll('.cost-group[data-area]').forEach(group => {
+    const heading = group.querySelector(':scope > h3');
+    const area = group.dataset.area || '';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'group-toggle';
+    const apply = (collapsed, remember = true) => {
+      group.classList.toggle('room-collapsed', collapsed);
+      button.setAttribute('aria-expanded', String(!collapsed));
+      button.textContent = collapsed ? '＋' : '−';
+      button.setAttribute('aria-label', (collapsed ? 'Expand ' : 'Collapse ') + area);
+      if (remember) saveState('room:' + area, collapsed ? 'closed' : 'open');
+    };
+    button.addEventListener('click', () => apply(!group.classList.contains('room-collapsed')));
+    heading.append(button);
+    apply(readState('room:' + area) === 'closed', false);
+  });
+
+  document.querySelectorAll('.section-nav a[href^="#"]').forEach(link => {
+    link.addEventListener('click', () => {
+      const section = document.querySelector(link.getAttribute('href'));
+      const button = section?.querySelector(':scope > .section-heading > .collapse-toggle');
+      if (section?.classList.contains('is-collapsed')) button?.click();
+    });
+  });
+})();
+</script>
 </body>
 </html>
