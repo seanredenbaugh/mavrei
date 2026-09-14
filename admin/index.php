@@ -18,6 +18,7 @@ $properties = db()->query("SELECT id,title,property_type,status,city,state,rent_
   <a class="logo-home" href="<?= e(base_url()) ?>"><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick"></a>
   <nav>
     <a href="<?= e(base_url('admin/map-settings.php')) ?>">Map settings</a>
+    <a href="<?= e(base_url('admin/account.php')) ?>">Account</a>
     <a href="<?= e(base_url()) ?>">View map</a>
     <form method="post" action="<?= e(base_url('admin/logout.php')) ?>">
       <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
