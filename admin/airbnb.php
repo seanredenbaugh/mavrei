@@ -309,6 +309,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin.css?v=20260914-2')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v22.css?v=20260914-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v23.css?v=20260914-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v24.css?v=20260914-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
