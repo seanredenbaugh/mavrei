@@ -314,7 +314,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 <body>
 <header class="admin-header">
   <a class="logo-home" href="<?= e(base_url()) ?>"><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick"></a>
-  <nav><a href="<?= e(base_url('admin/')) ?>">Properties</a><a href="<?= e(base_url('admin/property.php?id=' . $propertyId)) ?>">Property details</a><a href="<?= e(base_url()) ?>">View map</a></nav>
+  <nav><a href="<?= e(base_url('admin/')) ?>">Properties</a><a href="<?= e(base_url('admin/vacation-income.php?property_id=' . $propertyId)) ?>">Income</a><a href="<?= e(base_url('admin/property.php?id=' . $propertyId)) ?>">Property details</a><a href="<?= e(base_url()) ?>">View map</a></nav>
 </header>
 <main class="airbnb-wrap">
   <div class="airbnb-title"><div><p class="eyebrow">Vacation rental tracker</p><h1><?= e($property['title']) ?></h1><p><?= e($property['address_line1'] . ', ' . $property['city'] . ', ' . $property['state']) ?> · Airbnb / VRBO</p></div></div>

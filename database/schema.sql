@@ -152,3 +152,33 @@ CREATE TABLE airbnb_reference_notes (
     CONSTRAINT fk_airbnb_note_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
     INDEX idx_airbnb_note (property_id, category, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE vacation_rental_income (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    property_id INT UNSIGNED NOT NULL,
+    platform VARCHAR(30) NOT NULL DEFAULT 'airbnb',
+    reservation_code VARCHAR(100) NULL,
+    guest_name VARCHAR(120) NULL,
+    booking_date DATE NULL,
+    check_in DATE NULL,
+    check_out DATE NULL,
+    nights SMALLINT UNSIGNED NULL,
+    gross_rent DECIMAL(10,2) NULL,
+    cleaning_fee DECIMAL(10,2) NULL,
+    taxes_collected DECIMAL(10,2) NULL,
+    platform_fee DECIMAL(10,2) NULL,
+    adjustments DECIMAL(10,2) NULL,
+    net_payout DECIMAL(10,2) NULL,
+    payout_date DATE NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'USD',
+    status VARCHAR(30) NOT NULL DEFAULT 'paid',
+    notes TEXT NULL,
+    source_type VARCHAR(20) NOT NULL DEFAULT 'manual',
+    source_hash CHAR(64) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_vacation_income_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_vacation_income_source (source_hash),
+    INDEX idx_vacation_income_month (property_id, payout_date),
+    INDEX idx_vacation_income_stay (property_id, check_in)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
