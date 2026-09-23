@@ -9,7 +9,8 @@
     center: [-87.56, 37.98],
     zoom: 11,
     pitch: selectedStyle === '3d' ? 45 : 0,
-    cooperativeGestures: true
+    scrollZoom: true,
+    cooperativeGestures: false
   });
   map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
   map.addControl(new maplibregl.FullscreenControl(), 'bottom-right');
