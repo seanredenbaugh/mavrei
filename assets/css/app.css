@@ -25,11 +25,12 @@
 
 /* Full-width map with the property list floating above it on desktop. */
 @media(min-width:901px){
-  .dashboard{position:relative;display:block}
+  .dashboard{--portfolio-panel-width:min(780px,calc(100vw - 260px));position:relative;display:block}
   .map-panel{position:absolute;inset:0}
-  .property-panel{position:absolute;top:160px;right:18px;bottom:18px;width:390px;border:1px solid rgba(17,19,24,.12);border-radius:18px;background:rgba(238,241,244,.96);box-shadow:0 16px 42px rgba(14,23,35,.22);z-index:4}
+  .property-panel{position:absolute;top:110px;right:18px;bottom:18px;width:var(--portfolio-panel-width);border:1px solid rgba(17,19,24,.12);border-radius:18px;background:rgba(238,241,244,.96);box-shadow:0 16px 42px rgba(14,23,35,.22);z-index:4}
   .panel-heading{padding:18px 20px 14px}
-  .maplibregl-ctrl-bottom-right{right:408px;bottom:8px}
+  .property-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .maplibregl-ctrl-bottom-right{right:calc(var(--portfolio-panel-width) + 18px);bottom:8px}
 }
 
 .status-pill.headquarters{background:#111318}
