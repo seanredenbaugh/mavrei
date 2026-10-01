@@ -210,6 +210,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $query = http_build_query(['property_id'=>$propertyId, 'month'=>$selectedMonth] + $result);
             header('Location: ' . base_url('admin/airbnb.php?' . $query) . '#income');
             exit;
+        } elseif ($action === 'reorder_rehab') {
+            $area = substr(trim((string) ($_POST['area'] ?? '')), 0, 80);
+            $submittedIds = array_values(array_unique(array_filter(
+                array_map('intval', explode(',', (string) ($_POST['item_order'] ?? ''))),
+                static fn(int $id): bool => $id > 0
+            )));
+            if ($area === '' || !$submittedIds) throw new RuntimeException('The new item order was not valid.');
+
+            $stmt = db()->prepare('SELECT id FROM airbnb_rehab_items WHERE property_id=? AND area=? ORDER BY sort_order,id');
+            $stmt->execute([$propertyId, $area]);
+            $storedIds = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+            $expectedIds = $storedIds;
+            $receivedIds = $submittedIds;
+            sort($expectedIds);
+            sort($receivedIds);
+            if ($expectedIds !== $receivedIds) throw new RuntimeException('The item list changed before the order could be saved. Refresh and try again.');
+
+            db()->beginTransaction();
+            try {
+                $update = db()->prepare('UPDATE airbnb_rehab_items SET sort_order=? WHERE id=? AND property_id=? AND area=?');
+                foreach ($submittedIds as $position => $itemId) {
+                    $update->execute([$position + 1, $itemId, $propertyId, $area]);
+                }
+                db()->commit();
+            } catch (Throwable $exception) {
+                if (db()->inTransaction()) db()->rollBack();
+                throw $exception;
+            }
+            header('Location: ' . base_url('admin/airbnb.php?property_id=' . $propertyId . '&month=' . $selectedMonth . '&saved=1#rehab'));
+            exit;
         } elseif ($action === 'save_rehab') {
             $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT) ?: 0;
             $area = substr(trim((string) ($_POST['area'] ?? '')), 0, 80);
@@ -223,11 +253,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $totalCost = $unitPrice === null ? null : number_format((float) $quantity * (float) $unitPrice, 2, '.', '');
             $values = [$area, $name, $quantity, $unitPrice, $totalCost, $status, substr(trim((string) ($_POST['vendor'] ?? '')), 0, 120) ?: null, nullable_date('purchased_on'), trim((string) ($_POST['notes'] ?? '')) ?: null];
             if ($id) {
-                $values[] = $id; $values[] = $propertyId;
-                db()->prepare('UPDATE airbnb_rehab_items SET area=?, item_name=?, quantity=?, unit_price=?, actual_cost=?, status=?, vendor=?, purchased_on=?, notes=? WHERE id=? AND property_id=?')->execute($values);
+                $stmt = db()->prepare('SELECT area,sort_order FROM airbnb_rehab_items WHERE id=? AND property_id=?');
+                $stmt->execute([$id, $propertyId]);
+                $existingItem = $stmt->fetch();
+                if (!$existingItem) throw new RuntimeException('That rehab item could not be found.');
+                $sortOrder = (int) $existingItem['sort_order'];
+                if ($existingItem['area'] !== $area) {
+                    $stmt = db()->prepare('SELECT COALESCE(MAX(sort_order),0)+1 FROM airbnb_rehab_items WHERE property_id=? AND area=?');
+                    $stmt->execute([$propertyId, $area]);
+                    $sortOrder = (int) $stmt->fetchColumn();
+                }
+                $values[] = $sortOrder; $values[] = $id; $values[] = $propertyId;
+                db()->prepare('UPDATE airbnb_rehab_items SET area=?, item_name=?, quantity=?, unit_price=?, actual_cost=?, status=?, vendor=?, purchased_on=?, notes=?, sort_order=? WHERE id=? AND property_id=?')->execute($values);
             } else {
+                $stmt = db()->prepare('SELECT COALESCE(MAX(sort_order),0)+1 FROM airbnb_rehab_items WHERE property_id=? AND area=?');
+                $stmt->execute([$propertyId, $area]);
+                $sortOrder = (int) $stmt->fetchColumn();
                 array_unshift($values, $propertyId);
-                db()->prepare('INSERT INTO airbnb_rehab_items (property_id,area,item_name,quantity,unit_price,actual_cost,status,vendor,purchased_on,notes) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute($values);
+                $values[] = $sortOrder;
+                db()->prepare('INSERT INTO airbnb_rehab_items (property_id,area,item_name,quantity,unit_price,actual_cost,status,vendor,purchased_on,notes,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)')->execute($values);
             }
         } elseif ($action === 'delete_rehab') {
             $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT) ?: 0;
@@ -320,6 +364,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v22.css?v=20260914-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v23.css?v=20260914-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v24.css?v=20260914-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v35.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/vacation-income.css?v=20260914-2')) ?>">
 </head>
 <body>
@@ -342,7 +387,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <nav class="section-nav"><a href="#rehab">Setup &amp; rehab</a><a href="#monthly">Monthly costs</a><a href="#income">Income</a><a href="#reference">Property notes</a></nav>
 
   <section id="rehab" class="tracker-section">
-    <div class="section-heading"><div><p class="eyebrow">One-time costs</p><h2>Setup and rehab</h2><p>Enter a quantity and price. The tracker calculates each cost and room total automatically.</p></div>
+    <div class="section-heading"><div><p class="eyebrow">One-time costs</p><h2>Setup and rehab</h2><p>Enter a quantity and price, then drag items within each area into the order you plan to complete them.</p></div>
       <details class="add-panel"><summary>Add rehab item</summary>
         <form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="save_rehab">
           <label>Area<input name="area" list="area-list" required></label><label class="wide">Item<input name="item_name" required></label>
@@ -356,8 +401,8 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     <?php foreach ($areas as $area): $areaItems=array_values(array_filter($rehab,fn($i)=>$i['area']===$area)); $areaTotal=array_sum(array_map(fn($i)=>(float)($i['actual_cost']??0),$areaItems)); ?>
       <div class="cost-group" data-area="<?= e($area) ?>"><h3><strong><?= e($area) ?></strong><span><?= count($areaItems) ?> items · <?= money($areaTotal) ?> total</span></h3>
         <div class="cost-table"><div class="cost-row table-head"><span>Item</span><span>Status</span><span>Qty</span><span>Price</span><span>Cost</span><span></span></div>
-        <?php foreach ($areaItems as $item): ?><div class="cost-row is-<?=e($item['status'])?>">
-          <span><strong><?= e($item['item_name']) ?></strong><?php if($item['vendor']||$item['purchased_on']):?><small><?=e(trim(($item['vendor']?:'').' '.($item['purchased_on']?:'')))?></small><?php endif;?></span>
+        <?php foreach ($areaItems as $item): ?><div class="cost-row rehab-sortable is-<?=e($item['status'])?>" data-rehab-id="<?= (int) $item['id'] ?>">
+          <span><span class="rehab-drag-handle" draggable="true" title="Drag to reorder" aria-label="Drag <?= e($item['item_name']) ?> to reorder">⋮⋮</span><strong><?= e($item['item_name']) ?></strong><?php if($item['vendor']||$item['purchased_on']):?><small><?=e(trim(($item['vendor']?:'').' '.($item['purchased_on']?:'')))?></small><?php endif;?></span>
           <span><i class="status-dot <?=e($item['status'])?>"></i><?=e($statusLabels[$item['status']]??$item['status'])?></span>
           <span><?= number_format((float)$item['quantity'], (float)$item['quantity'] == floor((float)$item['quantity']) ? 0 : 2) ?></span><span><?= $item['unit_price']!==null ? money((float)$item['unit_price']) : '—' ?></span><span><strong><?= $item['actual_cost']!==null ? money((float)$item['actual_cost']) : '—' ?></strong></span>
           <details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_rehab"><input type="hidden" name="id" value="<?=$item['id']?>">
@@ -369,6 +414,12 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
         </div><?php endforeach; ?></div>
       </div>
     <?php endforeach; ?>
+    <form id="rehab-reorder-form" method="post">
+      <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="action" value="reorder_rehab">
+      <input type="hidden" name="area" value="">
+      <input type="hidden" name="item_order" value="">
+    </form>
   </section>
 
   <section id="monthly" class="tracker-section">
@@ -449,6 +500,56 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   if (anchoredSection?.classList.contains('is-collapsed')) {
     anchoredSection.querySelector(':scope > .section-heading > .collapse-toggle')?.click();
   }
+
+  const reorderForm = document.getElementById('rehab-reorder-form');
+  let draggedRow = null;
+  let draggedGroup = null;
+
+  document.querySelectorAll('.rehab-drag-handle').forEach(handle => {
+    handle.addEventListener('dragstart', event => {
+      draggedRow = handle.closest('.rehab-sortable');
+      draggedGroup = handle.closest('.cost-group[data-area]');
+      if (!draggedRow || !draggedGroup) {
+        event.preventDefault();
+        return;
+      }
+      draggedRow.classList.add('is-dragging');
+      draggedGroup.classList.add('is-reordering');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggedRow.dataset.rehabId || '');
+    });
+
+    handle.addEventListener('dragend', () => {
+      draggedRow?.classList.remove('is-dragging');
+      draggedGroup?.classList.remove('is-reordering');
+      document.querySelectorAll('.rehab-sortable.is-drop-target').forEach(row => row.classList.remove('is-drop-target'));
+      draggedRow = null;
+      draggedGroup = null;
+    });
+  });
+
+  document.querySelectorAll('.cost-group[data-area] .cost-table').forEach(table => {
+    table.addEventListener('dragover', event => {
+      if (!draggedRow || table.closest('.cost-group') !== draggedGroup) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      const target = event.target.closest('.rehab-sortable');
+      document.querySelectorAll('.rehab-sortable.is-drop-target').forEach(row => row.classList.remove('is-drop-target'));
+      if (!target || target === draggedRow) return;
+      target.classList.add('is-drop-target');
+      const rect = target.getBoundingClientRect();
+      target.parentNode.insertBefore(draggedRow, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+    });
+
+    table.addEventListener('drop', event => {
+      if (!draggedRow || table.closest('.cost-group') !== draggedGroup || !reorderForm) return;
+      event.preventDefault();
+      const ids = Array.from(table.querySelectorAll('.rehab-sortable')).map(row => row.dataset.rehabId);
+      reorderForm.elements.area.value = draggedGroup.dataset.area || '';
+      reorderForm.elements.item_order.value = ids.join(',');
+      reorderForm.requestSubmit();
+    });
+  });
 })();
 </script>
 </body>
