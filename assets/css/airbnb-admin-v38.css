@@ -1,0 +1,48 @@
+.row-edit-popup {
+  position: absolute;
+  right: 0;
+  z-index: 40;
+  width: min(700px, 88vw);
+  padding: 18px;
+  border: 1px solid var(--vr-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 20px 55px rgba(23, 36, 51, .21);
+}
+
+.row-edit-popup > .edit-grid {
+  position: static;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.row-edit-popup > .delete-form {
+  position: static;
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0 0;
+}
+
+.row-edit-popup > .delete-form button {
+  margin: 0;
+}
+
+.reference-grid .row-edit-popup {
+  right: auto;
+  left: 0;
+}
+
+@media (max-width: 650px) {
+  .row-edit-popup,
+  .reference-grid .row-edit-popup {
+    position: fixed;
+    inset: 10vh 4vw auto;
+    width: 92vw;
+    max-height: 80vh;
+    overflow: auto;
+  }
+}

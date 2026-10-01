@@ -367,6 +367,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v35.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v36.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v37.css?v=20261001-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v38.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/vacation-income.css?v=20260914-2')) ?>">
 </head>
 <body>
@@ -478,6 +479,16 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   });
   availableSections.forEach(section => sectionsContainer?.append(section));
   syncSectionNavigation();
+
+  document.querySelectorAll('.row-actions').forEach(actions => {
+    const editForm = actions.querySelector(':scope > .edit-grid');
+    const deleteForm = actions.querySelector(':scope > .delete-form');
+    if (!editForm || !deleteForm) return;
+    const popup = document.createElement('div');
+    popup.className = 'row-edit-popup';
+    actions.insertBefore(popup, editForm);
+    popup.append(editForm, deleteForm);
+  });
 
   const updateCollapseAllButton = () => {
     if (!collapseAllButton) return;
