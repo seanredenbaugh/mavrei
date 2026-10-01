@@ -366,6 +366,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v24.css?v=20260914-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v35.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v36.css?v=20261001-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v37.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/vacation-income.css?v=20260914-2')) ?>">
 </head>
 <body>
@@ -389,7 +390,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 
   <div id="tracker-sections">
   <section id="rehab" class="tracker-section">
-    <div class="section-heading"><div><p class="eyebrow">One-time costs</p><h2>Setup and rehab</h2><p>Enter a quantity and price, then drag items within each area into the order you plan to complete them.</p></div>
+    <div class="section-heading"><div><p class="eyebrow">One-time costs</p><h2>Setup and rehab</h2><p>Drag areas into your preferred order, then drag the items within each area into the order you plan to complete them.</p></div>
       <details class="add-panel"><summary>Add rehab item</summary>
         <form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="save_rehab">
           <label>Area<input name="area" list="area-list" required></label><label class="wide">Item<input name="item_name" required></label>
@@ -401,7 +402,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     </div>
     <datalist id="area-list"><?php foreach ($areas as $area): ?><option value="<?= e($area) ?>"><?php endforeach; ?></datalist>
     <?php foreach ($areas as $area): $areaItems=array_values(array_filter($rehab,fn($i)=>$i['area']===$area)); $areaTotal=array_sum(array_map(fn($i)=>(float)($i['actual_cost']??0),$areaItems)); ?>
-      <div class="cost-group" data-area="<?= e($area) ?>"><h3><strong><?= e($area) ?></strong><span><?= count($areaItems) ?> items · <?= money($areaTotal) ?> total</span></h3>
+      <div class="cost-group" data-area="<?= e($area) ?>"><h3><span class="area-drag-handle" draggable="true" title="Drag to reorder area" aria-label="Drag <?= e($area) ?> to reorder">⋮⋮</span><strong><?= e($area) ?></strong><span><?= count($areaItems) ?> items · <?= money($areaTotal) ?> total</span></h3>
         <div class="cost-table"><div class="cost-row table-head"><span>Item</span><span>Status</span><span>Qty</span><span>Price</span><span>Cost</span><span></span></div>
         <?php foreach ($areaItems as $item): ?><div class="cost-row rehab-sortable is-<?=e($item['status'])?>" data-rehab-id="<?= (int) $item['id'] ?>">
           <span><span class="rehab-drag-handle" draggable="true" title="Drag to reorder" aria-label="Drag <?= e($item['item_name']) ?> to reorder">⋮⋮</span><strong><?= e($item['item_name']) ?></strong><?php if($item['vendor']||$item['purchased_on']):?><small><?=e(trim(($item['vendor']?:'').' '.($item['purchased_on']?:'')))?></small><?php endif;?></span>
@@ -562,6 +563,63 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     event.preventDefault();
     saveState('section-order', currentSections().map(section => section.id).join(','));
     syncSectionNavigation();
+  });
+
+  const rehabSection = document.getElementById('rehab');
+  const areaOrderAnchor = document.getElementById('rehab-reorder-form');
+  const currentAreaGroups = () => Array.from(rehabSection?.querySelectorAll(':scope > .cost-group[data-area]') || []);
+  let storedAreaOrder = [];
+  try {
+    const savedAreaOrder = JSON.parse(readState('area-order') || '[]');
+    if (Array.isArray(savedAreaOrder)) storedAreaOrder = savedAreaOrder;
+  } catch (error) {}
+  const availableAreaGroups = new Map(currentAreaGroups().map(group => [group.dataset.area || '', group]));
+  storedAreaOrder.forEach(area => {
+    const group = availableAreaGroups.get(area);
+    if (group) {
+      rehabSection.insertBefore(group, areaOrderAnchor);
+      availableAreaGroups.delete(area);
+    }
+  });
+  availableAreaGroups.forEach(group => rehabSection?.insertBefore(group, areaOrderAnchor));
+
+  let draggedAreaGroup = null;
+  document.querySelectorAll('.area-drag-handle').forEach(handle => {
+    handle.addEventListener('dragstart', event => {
+      draggedAreaGroup = handle.closest('.cost-group[data-area]');
+      if (!draggedAreaGroup) {
+        event.preventDefault();
+        return;
+      }
+      draggedAreaGroup.classList.add('is-area-dragging');
+      rehabSection?.classList.add('is-reordering-areas');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggedAreaGroup.dataset.area || '');
+    });
+    handle.addEventListener('dragend', () => {
+      draggedAreaGroup?.classList.remove('is-area-dragging');
+      rehabSection?.classList.remove('is-reordering-areas');
+      currentAreaGroups().forEach(group => group.classList.remove('is-area-drop-target'));
+      draggedAreaGroup = null;
+    });
+  });
+
+  rehabSection?.addEventListener('dragover', event => {
+    if (!draggedAreaGroup) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const target = event.target.closest('.cost-group[data-area]');
+    currentAreaGroups().forEach(group => group.classList.remove('is-area-drop-target'));
+    if (!target || target === draggedAreaGroup || target.parentElement !== rehabSection) return;
+    target.classList.add('is-area-drop-target');
+    const rect = target.getBoundingClientRect();
+    rehabSection.insertBefore(draggedAreaGroup, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+  });
+
+  rehabSection?.addEventListener('drop', event => {
+    if (!draggedAreaGroup) return;
+    event.preventDefault();
+    saveState('area-order', JSON.stringify(currentAreaGroups().map(group => group.dataset.area || '')));
   });
 
   document.querySelectorAll('.cost-group[data-area]').forEach(group => {
