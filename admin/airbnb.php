@@ -365,6 +365,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v23.css?v=20260914-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v24.css?v=20260914-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v35.css?v=20261001-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v36.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/vacation-income.css?v=20260914-2')) ?>">
 </head>
 <body>
@@ -384,8 +385,9 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     <article><span><?= e(date('F Y', strtotime($monthDate))) ?></span><strong><?= money($monthActual) ?></strong><small><?= $monthPending ?> amount<?= $monthPending === 1 ? '' : 's' ?> still pending</small></article>
   </section>
 
-  <nav class="section-nav"><a href="#rehab">Setup &amp; rehab</a><a href="#monthly">Monthly costs</a><a href="#income">Income</a><a href="#reference">Property notes</a></nav>
+  <nav class="section-nav"><a href="#rehab">Setup &amp; rehab</a><a href="#monthly">Monthly costs</a><a href="#income">Income</a><a href="#reference">Property notes</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
 
+  <div id="tracker-sections">
   <section id="rehab" class="tracker-section">
     <div class="section-heading"><div><p class="eyebrow">One-time costs</p><h2>Setup and rehab</h2><p>Enter a quantity and price, then drag items within each area into the order you plan to complete them.</p></div>
       <details class="add-panel"><summary>Add rehab item</summary>
@@ -446,16 +448,56 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <section id="reference" class="tracker-section"><div class="section-heading"><div><p class="eyebrow">Quick reference</p><h2>Property notes</h2><p>Measurements, paint colors, model numbers, and other details you need while shopping.</p></div><details class="add-panel"><summary>Add reference note</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_note"><label>Category<input name="category" required></label><label>Label<input name="label" required></label><label class="wide">Value<input name="note_value" required></label><button>Save note</button></form></details></div>
     <div class="reference-grid"><?php foreach($referenceNotes as $note):?><article><small><?=e($note['category'])?></small><strong><?=e($note['label'])?></strong><span><?=e($note['note_value'])?></span><details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_note"><input type="hidden" name="id" value="<?=$note['id']?>"><label>Category<input name="category" value="<?=e($note['category'])?>" required></label><label>Label<input name="label" value="<?=e($note['label'])?>" required></label><label class="wide">Value<input name="note_value" value="<?=e($note['note_value'])?>" required></label><button>Save</button></form><form method="post" class="delete-form" onsubmit="return confirm('Delete this note?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_note"><input type="hidden" name="id" value="<?=$note['id']?>"><button>Delete</button></form></details></article><?php endforeach;?></div>
   </section>
+  </div>
 </main>
 <script>
 (() => {
   const prefix = 'mavrei-vacation-rental-<?= (int) $propertyId ?>:';
   const readState = key => { try { return localStorage.getItem(prefix + key); } catch (error) { return null; } };
   const saveState = (key, value) => { try { localStorage.setItem(prefix + key, value); } catch (error) {} };
+  const sectionsContainer = document.getElementById('tracker-sections');
+  const sectionNav = document.querySelector('.section-nav');
+  const collapseAllButton = document.getElementById('collapse-all-sections');
+
+  const currentSections = () => Array.from(sectionsContainer?.querySelectorAll(':scope > .tracker-section') || []);
+  const syncSectionNavigation = () => {
+    currentSections().forEach(section => {
+      const link = sectionNav?.querySelector(`a[href="#${section.id}"]`);
+      if (link) sectionNav.insertBefore(link, collapseAllButton);
+    });
+  };
+  const storedSectionOrder = (readState('section-order') || '').split(',').filter(Boolean);
+  const availableSections = new Map(currentSections().map(section => [section.id, section]));
+  storedSectionOrder.forEach(id => {
+    const section = availableSections.get(id);
+    if (section) {
+      sectionsContainer.append(section);
+      availableSections.delete(id);
+    }
+  });
+  availableSections.forEach(section => sectionsContainer?.append(section));
+  syncSectionNavigation();
+
+  const updateCollapseAllButton = () => {
+    if (!collapseAllButton) return;
+    const sections = currentSections();
+    const allCollapsed = sections.length > 0 && sections.every(section => section.classList.contains('is-collapsed'));
+    collapseAllButton.textContent = allCollapsed ? 'Expand all' : 'Collapse all';
+    collapseAllButton.setAttribute('aria-expanded', String(!allCollapsed));
+  };
 
   document.querySelectorAll('.tracker-section').forEach(section => {
     const heading = section.querySelector(':scope > .section-heading');
     if (!heading) return;
+    const dragHandle = document.createElement('span');
+    dragHandle.className = 'section-drag-handle';
+    dragHandle.draggable = true;
+    dragHandle.title = 'Drag to reorder section';
+    dragHandle.setAttribute('role', 'button');
+    dragHandle.setAttribute('tabindex', '0');
+    dragHandle.setAttribute('aria-label', `Drag ${section.querySelector('h2')?.textContent || 'section'} to reorder`);
+    dragHandle.textContent = '⋮⋮';
+    heading.prepend(dragHandle);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'collapse-toggle';
@@ -464,10 +506,62 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       button.setAttribute('aria-expanded', String(!collapsed));
       button.innerHTML = `<span aria-hidden="true">${collapsed ? '＋' : '−'}</span>${collapsed ? 'Expand' : 'Collapse'}`;
       if (remember) saveState('section:' + section.id, collapsed ? 'closed' : 'open');
+      updateCollapseAllButton();
     };
     button.addEventListener('click', () => apply(!section.classList.contains('is-collapsed')));
     heading.append(button);
     apply(readState('section:' + section.id) === 'closed', false);
+  });
+
+  collapseAllButton?.addEventListener('click', () => {
+    const sections = currentSections();
+    const shouldCollapse = !sections.every(section => section.classList.contains('is-collapsed'));
+    sections.forEach(section => {
+      if (section.classList.contains('is-collapsed') !== shouldCollapse) {
+        section.querySelector(':scope > .section-heading > .collapse-toggle')?.click();
+      }
+    });
+    updateCollapseAllButton();
+  });
+
+  let draggedSection = null;
+  document.querySelectorAll('.section-drag-handle').forEach(handle => {
+    handle.addEventListener('dragstart', event => {
+      draggedSection = handle.closest('.tracker-section');
+      if (!draggedSection) {
+        event.preventDefault();
+        return;
+      }
+      draggedSection.classList.add('is-section-dragging');
+      sectionsContainer?.classList.add('is-reordering-sections');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggedSection.id);
+    });
+    handle.addEventListener('dragend', () => {
+      draggedSection?.classList.remove('is-section-dragging');
+      sectionsContainer?.classList.remove('is-reordering-sections');
+      currentSections().forEach(section => section.classList.remove('is-section-drop-target'));
+      draggedSection = null;
+    });
+  });
+
+  sectionsContainer?.addEventListener('dragover', event => {
+    if (!draggedSection) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const target = event.target.closest('.tracker-section');
+    currentSections().forEach(section => section.classList.remove('is-section-drop-target'));
+    if (!target || target === draggedSection || target.parentElement !== sectionsContainer) return;
+    target.classList.add('is-section-drop-target');
+    const rect = target.getBoundingClientRect();
+    sectionsContainer.insertBefore(draggedSection, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+  });
+
+  sectionsContainer?.addEventListener('drop', event => {
+    if (!draggedSection) return;
+    event.preventDefault();
+    saveState('section-order', currentSections().map(section => section.id).join(','));
+    syncSectionNavigation();
   });
 
   document.querySelectorAll('.cost-group[data-area]').forEach(group => {
