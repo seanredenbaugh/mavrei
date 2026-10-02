@@ -21,6 +21,7 @@ $photos = $photoStmt->fetchAll();
   <title><?= e($property['title']) ?> | <?= e(config('app.name')) ?></title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/property.css?v=20260911-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-lightbox-v39.css?v=20261001-1')) ?>">
 </head>
 <body class="detail-page">
   <header class="detail-header"><a href="<?= e(base_url()) ?>">← Back to map</a><a class="logo-home" href="<?= e(base_url()) ?>"><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick Real Estate Investments"></a><?php if (is_admin()): ?><a href="<?= e(base_url('admin/property.php?id=' . $property['id'])) ?>">Edit property</a><?php else: ?><span></span><?php endif; ?></header>
@@ -35,7 +36,64 @@ $photos = $photoStmt->fetchAll();
     </section>
     <?php if ($property['description']): ?><section class="description"><h2>About this property</h2><?= nl2br(e($property['description'])) ?></section><?php endif; ?>
   </main>
-  <dialog id="lightbox"><button aria-label="Close">×</button><img alt="Property photo"></dialog>
-  <script>const box=document.querySelector('#lightbox');document.querySelectorAll('.gallery-photo').forEach(b=>b.onclick=()=>{box.querySelector('img').src=b.dataset.full;box.showModal()});box.querySelector('button').onclick=()=>box.close();box.onclick=e=>{if(e.target===box)box.close()}</script>
-</body></html>
+  <dialog id="lightbox" aria-label="Property photo viewer">
+    <button type="button" class="lightbox-close" aria-label="Close photo viewer">×</button>
+    <button type="button" class="lightbox-nav lightbox-prev" aria-label="Previous photo">‹</button>
+    <img alt="Property photo">
+    <button type="button" class="lightbox-nav lightbox-next" aria-label="Next photo">›</button>
+    <span class="lightbox-count" aria-live="polite"></span>
+  </dialog>
+  <script>
+  (() => {
+    const box = document.querySelector('#lightbox');
+    const photos = Array.from(document.querySelectorAll('.gallery-photo'));
+    if (!box || !photos.length) return;
 
+    const image = box.querySelector('img');
+    const count = box.querySelector('.lightbox-count');
+    const previous = box.querySelector('.lightbox-prev');
+    const next = box.querySelector('.lightbox-next');
+    let currentIndex = 0;
+
+    const showPhoto = index => {
+      currentIndex = (index + photos.length) % photos.length;
+      const photo = photos[currentIndex];
+      const thumbnail = photo.querySelector('img');
+      image.src = photo.dataset.full;
+      image.alt = thumbnail?.alt || 'Property photo';
+      count.textContent = `${currentIndex + 1} / ${photos.length}`;
+      previous.hidden = photos.length < 2;
+      next.hidden = photos.length < 2;
+
+      if (photos.length > 1) {
+        const preload = new Image();
+        preload.src = photos[(currentIndex + 1) % photos.length].dataset.full;
+      }
+    };
+
+    photos.forEach((photo, index) => {
+      photo.addEventListener('click', () => {
+        showPhoto(index);
+        if (!box.open) box.showModal();
+      });
+    });
+
+    previous.addEventListener('click', () => showPhoto(currentIndex - 1));
+    next.addEventListener('click', () => showPhoto(currentIndex + 1));
+    box.querySelector('.lightbox-close').addEventListener('click', () => box.close());
+    box.addEventListener('click', event => {
+      if (event.target === box) box.close();
+    });
+    document.addEventListener('keydown', event => {
+      if (!box.open || photos.length < 2) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        showPhoto(currentIndex - 1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        showPhoto(currentIndex + 1);
+      }
+    });
+  })();
+  </script>
+</body></html>
