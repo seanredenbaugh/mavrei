@@ -1,0 +1,37 @@
+.cost-row.is-purchased {
+  background: #fff0b8;
+  box-shadow: inset 4px 0 #d79700;
+}
+
+.cost-row.is-purchased:hover {
+  background: #ffe69a;
+}
+
+.cost-row.is-purchased > span:first-child strong {
+  color: #765000;
+}
+
+.cost-row.is-purchased .status-dot,
+.status-dot.purchased {
+  background: #d79700;
+  box-shadow: 0 0 0 3px rgba(215, 151, 0, .18);
+}
+
+.cost-row.is-completed {
+  background: #cfeeda;
+  box-shadow: inset 4px 0 #16834f;
+}
+
+.cost-row.is-completed:hover {
+  background: #bfe5cc;
+}
+
+.cost-row.is-completed > span:first-child strong {
+  color: #0d5735;
+}
+
+.cost-row.is-completed .status-dot,
+.status-dot.completed {
+  background: #16834f;
+  box-shadow: 0 0 0 3px rgba(22, 131, 79, .18);
+}
