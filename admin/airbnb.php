@@ -370,6 +370,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v38.css?v=20261001-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v40.css?v=20261007-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/vacation-income.css?v=20260914-2')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v41.css?v=20261012-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -487,8 +488,46 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     if (!editForm || !deleteForm) return;
     const popup = document.createElement('div');
     popup.className = 'row-edit-popup';
+    const footer = document.createElement('div');
+    footer.className = 'edit-popup-footer';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'edit-cancel';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => {
+      editForm.reset();
+      actions.open = false;
+    });
     actions.insertBefore(popup, editForm);
-    popup.append(editForm, deleteForm);
+    popup.append(editForm, footer);
+    footer.append(cancel, deleteForm);
+  });
+
+  document.querySelectorAll('.income-edit').forEach(actions => {
+    const editForm = actions.querySelector(':scope > .income-form');
+    const deleteForm = actions.querySelector(':scope > .income-delete');
+    if (!editForm || !deleteForm) return;
+    const popup = document.createElement('div');
+    popup.className = 'income-edit-popup';
+    const footer = document.createElement('div');
+    footer.className = 'edit-popup-footer';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'edit-cancel';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => {
+      editForm.reset();
+      actions.open = false;
+    });
+    actions.insertBefore(popup, editForm);
+    popup.append(editForm, footer);
+    footer.append(cancel, deleteForm);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const openEditor = document.querySelector('.income-edit[open], .row-actions[open]');
+    openEditor?.querySelector('.edit-cancel')?.click();
   });
 
   const updateCollapseAllButton = () => {
