@@ -96,7 +96,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><?= e($id ? 'Edit property' : 'Add property') ?> | Admin</title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20261015-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20261015-2')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -154,6 +154,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
     <?php else: ?>
       <?php if ($photoStatus === 'uploaded'): ?><p class="alert success"><?= (int) ($_GET['uploaded'] ?? 0) ?> photo<?= (int) ($_GET['uploaded'] ?? 0) === 1 ? '' : 's' ?> uploaded.<?php if ((int) ($_GET['skipped'] ?? 0)): ?> <?= (int) $_GET['skipped'] ?> file<?= (int) $_GET['skipped'] === 1 ? '' : 's' ?> skipped.<?php endif; ?></p><?php endif; ?>
       <?php if ($photoStatus === 'featured'): ?><p class="alert success">Cover photo updated.</p><?php endif; ?>
+      <?php if ($photoStatus === 'captioned'): ?><p class="alert success">Photo caption saved.</p><?php endif; ?>
       <?php if ($photoStatus === 'deleted'): ?><p class="alert success">Photo deleted.</p><?php endif; ?>
       <?php if ($photoStatus === 'reordered'): ?><p class="alert success">Photo order updated.</p><?php endif; ?>
       <?php if ($photoStatus === 'repaired'): ?><p class="alert success"><?= (int) ($_GET['repaired'] ?? 0) ?> JPEG photo<?= (int) ($_GET['repaired'] ?? 0) === 1 ? '' : 's' ?> repaired and optimized.<?php if ((int) ($_GET['repair_failed'] ?? 0)): ?> <?= (int) $_GET['repair_failed'] ?> could not be repaired.<?php endif; ?><?php if ((int) ($_GET['not_jpeg'] ?? 0)): ?> <?= (int) $_GET['not_jpeg'] ?> non-JPEG photo<?= (int) $_GET['not_jpeg'] === 1 ? ' was' : 's were' ?> left unchanged.<?php endif; ?></p><?php endif; ?>
@@ -171,11 +172,19 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
 
       <?php if ($photos): ?>
         <div class="photo-repair"><div><strong>Broken or slow JPEGs?</strong><span>Repair converts existing JPEGs to browser-safe RGB and reduces oversized photos without changing their order.</span></div><form method="post" action="<?= e(base_url('admin/photos.php')) ?>" onsubmit="return confirm('Repair and optimize all JPEG photos for this property?')"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="property_id" value="<?= $id ?>"><input type="hidden" name="action" value="repair"><button type="submit">Repair JPEGs</button></form></div>
-        <p class="photo-help">Drag photos to reorder them, or use the arrow buttons. The cover photo appears on the map and property cards.</p>
+        <p class="photo-help">Add a short guest-facing caption to explain each photo. Drag photos to reorder them, or use the arrow buttons. The cover photo appears on the map and property cards.</p>
         <div id="photo-grid" class="photo-grid">
           <?php foreach ($photos as $index => $photo): $isFeatured = $property['featured_photo'] === $photo['file_path']; ?>
             <article class="photo-item <?= $isFeatured ? 'is-featured' : '' ?>" draggable="true" data-photo-id="<?= (int) $photo['id'] ?>">
               <div class="photo-image-wrap"><img src="<?= e(base_url($photo['file_path'])) ?>" alt="<?= e($photo['alt_text'] ?: $property['title']) ?>" loading="lazy"><span class="drag-handle" title="Drag to reorder">Drag</span><?php if ($isFeatured): ?><b>Cover photo</b><?php endif; ?></div>
+              <form class="photo-caption-form" method="post" action="<?= e(base_url('admin/photos.php')) ?>">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                <input type="hidden" name="property_id" value="<?= $id ?>">
+                <input type="hidden" name="action" value="caption">
+                <input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>">
+                <label>Guest caption<input type="text" name="caption" maxlength="255" value="<?= e((string) ($photo['caption'] ?? '')) ?>" placeholder="Example: Main bedroom with king bed"></label>
+                <button type="submit">Save caption</button>
+              </form>
               <div class="photo-actions">
                 <form method="post" action="<?= e(base_url('admin/photos.php')) ?>"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="property_id" value="<?= $id ?>"><input type="hidden" name="action" value="move"><input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>"><button name="direction" value="earlier" title="Move earlier" <?= $index === 0 ? 'disabled' : '' ?>>←</button><button name="direction" value="later" title="Move later" <?= $index === count($photos) - 1 ? 'disabled' : '' ?>>→</button></form>
                 <?php if (!$isFeatured): ?><form method="post" action="<?= e(base_url('admin/photos.php')) ?>"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="property_id" value="<?= $id ?>"><input type="hidden" name="action" value="feature"><input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>"><button class="feature-button">Make cover</button></form><?php endif; ?>
@@ -202,6 +211,7 @@ const photoGrid=document.querySelector('#photo-grid');
 const reorderForm=document.querySelector('#reorder-form');
 let draggedPhoto=null;
 photoGrid?.addEventListener('dragstart',event=>{
+  if(event.target.closest('input,button,form')){event.preventDefault();return;}
   draggedPhoto=event.target.closest('.photo-item');
   if(!draggedPhoto)return;
   draggedPhoto.classList.add('is-dragging');

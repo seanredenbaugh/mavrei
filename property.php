@@ -22,12 +22,13 @@ $photos = $photoStmt->fetchAll();
   <link rel="stylesheet" href="<?= e(base_url('assets/css/app.css?v=20260910-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/property.css?v=20260911-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/property-lightbox-v39.css?v=20261001-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photo-captions-v43.css?v=20261016-1')) ?>">
 </head>
 <body class="detail-page">
   <header class="detail-header"><a href="<?= e(base_url()) ?>">← Back to map</a><a class="logo-home" href="<?= e(base_url()) ?>"><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick Real Estate Investments"></a><?php if (is_admin()): ?><a href="<?= e(base_url('admin/property.php?id=' . $property['id'])) ?>">Edit property</a><?php else: ?><span></span><?php endif; ?></header>
   <main class="detail-wrap">
     <div class="detail-title"><div><span class="status-pill <?= e($property['property_type'] === 'house' ? $property['status'] : $property['property_type']) ?>"><?= e(status_label($property['status'])) ?></span><p class="eyebrow"><?= e(type_label($property['property_type'])) ?></p><h1><?= e($property['title']) ?></h1><p><?= e($property['address_line1']) ?>, <?= e($property['city']) ?>, <?= e($property['state']) ?> <?= e($property['postal_code']) ?></p></div></div>
-    <?php if ($photos): ?><section class="gallery"><?php foreach ($photos as $index => $photo): ?><button class="gallery-photo<?= $index === 0 ? ' primary' : '' ?>" data-full="<?= e(base_url($photo['file_path'])) ?>"><img src="<?= e(base_url($photo['file_path'])) ?>" alt="<?= e($photo['alt_text'] ?: $property['title']) ?>" loading="<?= $index > 3 ? 'lazy' : 'eager' ?>"></button><?php endforeach; ?></section><?php endif; ?>
+    <?php if ($photos): ?><section class="gallery"><?php foreach ($photos as $index => $photo): $caption = trim((string) ($photo['caption'] ?? '')); ?><button class="gallery-photo<?= $index === 0 ? ' primary' : '' ?>" data-full="<?= e(base_url($photo['file_path'])) ?>" data-caption="<?= e($caption) ?>"><img src="<?= e(base_url($photo['file_path'])) ?>" alt="<?= e($caption ?: ($photo['alt_text'] ?: $property['title'])) ?>" loading="<?= $index > 3 ? 'lazy' : 'eager' ?>"><?php if ($caption !== ''): ?><span class="gallery-caption"><?= e($caption) ?></span><?php endif; ?></button><?php endforeach; ?></section><?php endif; ?>
     <section class="facts">
       <div><strong><?= e($property['bedrooms'] ?: '—') ?></strong><span>Bedrooms</span></div>
       <div><strong><?= e($property['bathrooms'] ?: '—') ?></strong><span>Bathrooms</span></div>
@@ -41,7 +42,7 @@ $photos = $photoStmt->fetchAll();
     <button type="button" class="lightbox-nav lightbox-prev" aria-label="Previous photo">‹</button>
     <img alt="Property photo">
     <button type="button" class="lightbox-nav lightbox-next" aria-label="Next photo">›</button>
-    <span class="lightbox-count" aria-live="polite"></span>
+    <div class="lightbox-footer"><p class="lightbox-caption"></p><span class="lightbox-count" aria-live="polite"></span></div>
   </dialog>
   <script>
   (() => {
@@ -51,6 +52,7 @@ $photos = $photoStmt->fetchAll();
 
     const image = box.querySelector('img');
     const count = box.querySelector('.lightbox-count');
+    const caption = box.querySelector('.lightbox-caption');
     const previous = box.querySelector('.lightbox-prev');
     const next = box.querySelector('.lightbox-next');
     let currentIndex = 0;
@@ -61,6 +63,8 @@ $photos = $photoStmt->fetchAll();
       const thumbnail = photo.querySelector('img');
       image.src = photo.dataset.full;
       image.alt = thumbnail?.alt || 'Property photo';
+      caption.textContent = photo.dataset.caption || '';
+      caption.hidden = !caption.textContent;
       count.textContent = `${currentIndex + 1} / ${photos.length}`;
       previous.hidden = photos.length < 2;
       next.hidden = photos.length < 2;

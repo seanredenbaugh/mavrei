@@ -206,11 +206,17 @@ try {
         throw $exception;
     }
     $redirect['photos'] = 'reordered';
-  } elseif (in_array($action, ['feature','delete','move'], true)) {
+  } elseif (in_array($action, ['feature','delete','move','caption'], true)) {
     $photoId = filter_input(INPUT_POST, 'photo_id', FILTER_VALIDATE_INT) ?: 0;
     $photoStmt = db()->prepare('SELECT id,file_path FROM property_photos WHERE id=? AND property_id=?');
     $photoStmt->execute([$photoId,$propertyId]);
     $photo = $photoStmt->fetch();
+    if ($photo && $action === 'caption') {
+        $caption = trim((string) ($_POST['caption'] ?? ''));
+        $caption = function_exists('mb_substr') ? mb_substr($caption, 0, 255) : substr($caption, 0, 255);
+        db()->prepare('UPDATE property_photos SET caption=? WHERE id=? AND property_id=?')->execute([$caption === '' ? null : $caption,$photoId,$propertyId]);
+        $redirect['photos'] = 'captioned';
+    }
     if ($photo && $action === 'feature') {
         db()->prepare('UPDATE properties SET featured_photo=? WHERE id=?')->execute([$photo['file_path'],$propertyId]);
         $redirect['photos'] = 'featured';

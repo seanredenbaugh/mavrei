@@ -289,6 +289,11 @@ function ensure_property_schema(): void
             db()->exec("ALTER TABLE properties MODIFY {$column} VARCHAR(30) NOT NULL DEFAULT " . db()->quote($default));
         }
     }
+
+    $captionColumn = db()->query("SHOW COLUMNS FROM property_photos LIKE 'caption'")->fetch();
+    if (!$captionColumn) {
+        db()->exec("ALTER TABLE property_photos ADD caption VARCHAR(255) NULL AFTER file_path");
+    }
 }
 
 function site_setting(string $key, string $default = ''): string
