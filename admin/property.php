@@ -96,7 +96,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><?= e($id ? 'Edit property' : 'Add property') ?> | Admin</title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20260930-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20261015-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -156,18 +156,21 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
       <?php if ($photoStatus === 'featured'): ?><p class="alert success">Cover photo updated.</p><?php endif; ?>
       <?php if ($photoStatus === 'deleted'): ?><p class="alert success">Photo deleted.</p><?php endif; ?>
       <?php if ($photoStatus === 'reordered'): ?><p class="alert success">Photo order updated.</p><?php endif; ?>
+      <?php if ($photoStatus === 'repaired'): ?><p class="alert success"><?= (int) ($_GET['repaired'] ?? 0) ?> JPEG photo<?= (int) ($_GET['repaired'] ?? 0) === 1 ? '' : 's' ?> repaired and optimized.<?php if ((int) ($_GET['repair_failed'] ?? 0)): ?> <?= (int) $_GET['repair_failed'] ?> could not be repaired.<?php endif; ?><?php if ((int) ($_GET['not_jpeg'] ?? 0)): ?> <?= (int) $_GET['not_jpeg'] ?> non-JPEG photo<?= (int) $_GET['not_jpeg'] === 1 ? ' was' : 's were' ?> left unchanged.<?php endif; ?></p><?php endif; ?>
+      <?php if ($photoStatus === 'repair_unavailable'): ?><p class="alert error">JPEG repair is unavailable because this server does not have GD or ImageMagick enabled.</p><?php endif; ?>
       <?php if (in_array($photoStatus, ['error','notfound'], true)): ?><p class="alert error">The photo change could not be completed.</p><?php endif; ?>
 
       <form class="photo-upload" method="post" enctype="multipart/form-data" action="<?= e(base_url('admin/photos.php')) ?>">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
         <input type="hidden" name="property_id" value="<?= $id ?>">
         <input type="hidden" name="action" value="upload">
-        <label>Select photos<input type="file" name="photos[]" accept="image/jpeg,image/png,image/webp,image/gif" multiple required></label>
+        <label>Select photos<input type="file" name="photos[]" accept=".jpg,.jpeg,image/jpeg,image/png,image/webp,image/gif" multiple required></label>
         <button type="submit">Upload photos</button>
-        <small>JPEG, PNG, WebP, or GIF. Up to 20 at a time and 15 MB per photo; your host's total upload limit also applies.</small>
+        <small>JPEG, PNG, WebP, or GIF. New JPEGs are automatically rotated, resized, and converted to a web-safe format. Up to 20 at a time and 15 MB per photo; your host's total upload limit also applies.</small>
       </form>
 
       <?php if ($photos): ?>
+        <div class="photo-repair"><div><strong>Broken or slow JPEGs?</strong><span>Repair converts existing JPEGs to browser-safe RGB and reduces oversized photos without changing their order.</span></div><form method="post" action="<?= e(base_url('admin/photos.php')) ?>" onsubmit="return confirm('Repair and optimize all JPEG photos for this property?')"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="property_id" value="<?= $id ?>"><input type="hidden" name="action" value="repair"><button type="submit">Repair JPEGs</button></form></div>
         <p class="photo-help">Drag photos to reorder them, or use the arrow buttons. The cover photo appears on the map and property cards.</p>
         <div id="photo-grid" class="photo-grid">
           <?php foreach ($photos as $index => $photo): $isFeatured = $property['featured_photo'] === $photo['file_path']; ?>
