@@ -131,6 +131,13 @@ try {
                 $skipped++;
                 continue;
             }
+            $savedImage = @getimagesize($destination);
+            if (!$savedImage || !is_file($destination) || !is_readable($destination) || filesize($destination) < 1) {
+                if (is_file($destination)) @unlink($destination);
+                $skipped++;
+                error_log('Property photo upload produced an unreadable file: ' . $originalName);
+                continue;
+            }
             $path = 'uploads/properties/' . $property['slug'] . '/' . $filename;
             db()->prepare('INSERT INTO property_photos(property_id,file_path,alt_text,sort_order) VALUES (?,?,?,?)')->execute([$propertyId,$path,substr($originalName,0,255),++$order]);
             $uploaded++;

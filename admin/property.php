@@ -96,7 +96,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><?= e($id ? 'Edit property' : 'Add property') ?> | Admin</title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20261015-2')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20261015-3')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -161,13 +161,14 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
       <?php if ($photoStatus === 'repair_unavailable'): ?><p class="alert error">JPEG repair is unavailable because this server does not have GD or ImageMagick enabled.</p><?php endif; ?>
       <?php if (in_array($photoStatus, ['error','notfound'], true)): ?><p class="alert error">The photo change could not be completed.</p><?php endif; ?>
 
-      <form class="photo-upload" method="post" enctype="multipart/form-data" action="<?= e(base_url('admin/photos.php')) ?>">
+      <form id="photo-upload-form" class="photo-upload" method="post" enctype="multipart/form-data" action="<?= e(base_url('admin/photos.php')) ?>">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
         <input type="hidden" name="property_id" value="<?= $id ?>">
         <input type="hidden" name="action" value="upload">
-        <label>Select photos<input type="file" name="photos[]" accept=".jpg,.jpeg,image/jpeg,image/png,image/webp,image/gif" multiple required></label>
+        <label>Select photos<input id="photo-upload-input" type="file" name="photos[]" accept=".jpg,.jpeg,image/jpeg,image/png,image/webp,image/gif" multiple required></label>
         <button type="submit">Upload photos</button>
-        <small>JPEG, PNG, WebP, or GIF. New JPEGs are automatically rotated, resized, and converted to a web-safe format. Up to 20 at a time and 15 MB per photo; your host's total upload limit also applies.</small>
+        <small>JPEG, PNG, WebP, or GIF. Your browser converts JPEGs to a web-safe format before upload. Up to 20 at a time and 15 MB per photo; your host's total upload limit also applies.</small>
+        <span id="photo-upload-status" class="photo-upload-status" role="status" aria-live="polite"></span>
       </form>
 
       <?php if ($photos): ?>
@@ -206,6 +207,60 @@ const propertyStatus=document.querySelector('[name="status"]');
 const syncHeadquartersStatus=()=>{if(propertyType.value==='headquarters')propertyStatus.value='active'};
 propertyType.addEventListener('change',syncHeadquartersStatus);
 syncHeadquartersStatus();
+
+const photoUploadForm=document.querySelector('#photo-upload-form');
+const photoUploadInput=document.querySelector('#photo-upload-input');
+const photoUploadStatus=document.querySelector('#photo-upload-status');
+let photoUploadPrepared=false;
+const isJpegFile=file=>file.type==='image/jpeg'||/\.jpe?g$/i.test(file.name);
+
+const convertJpegForUpload=async file=>{
+  const bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});
+  const maxDimension=2400;
+  const scale=Math.min(1,maxDimension/Math.max(bitmap.width,bitmap.height));
+  const width=Math.max(1,Math.round(bitmap.width*scale));
+  const height=Math.max(1,Math.round(bitmap.height*scale));
+  const canvas=document.createElement('canvas');
+  canvas.width=width;
+  canvas.height=height;
+  const context=canvas.getContext('2d',{alpha:false});
+  context.fillStyle='#fff';
+  context.fillRect(0,0,width,height);
+  context.drawImage(bitmap,0,0,width,height);
+  bitmap.close?.();
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.86));
+  if(!blob||blob.type!=='image/webp')throw new Error(`Could not convert ${file.name}`);
+  const baseName=file.name.replace(/\.[^.]+$/,'')||'photo';
+  return new File([blob],`${baseName}.webp`,{type:'image/webp',lastModified:Date.now()});
+};
+
+photoUploadForm?.addEventListener('submit',async event=>{
+  if(photoUploadPrepared)return;
+  const files=Array.from(photoUploadInput?.files||[]);
+  if(!files.some(isJpegFile))return;
+  if(typeof createImageBitmap!=='function'||typeof DataTransfer!=='function')return;
+  event.preventDefault();
+  const button=photoUploadForm.querySelector('button[type="submit"]');
+  button.disabled=true;
+  photoUploadStatus.textContent='Preparing JPEG photos for upload…';
+  try{
+    const prepared=[];
+    for(const file of files){
+      prepared.push(isJpegFile(file)?await convertJpegForUpload(file):file);
+    }
+    const transfer=new DataTransfer();
+    prepared.forEach(file=>transfer.items.add(file));
+    photoUploadInput.files=transfer.files;
+    photoUploadPrepared=true;
+    photoUploadStatus.textContent='Uploading prepared photos…';
+    photoUploadForm.requestSubmit();
+  }catch(error){
+    console.error(error);
+    photoUploadStatus.textContent='One JPEG could not be prepared. Try exporting that photo as PNG or WebP first.';
+    photoUploadStatus.classList.add('is-error');
+    button.disabled=false;
+  }
+});
 
 const photoGrid=document.querySelector('#photo-grid');
 const reorderForm=document.querySelector('#reorder-form');
