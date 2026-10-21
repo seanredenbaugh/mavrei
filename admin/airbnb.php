@@ -200,6 +200,16 @@ try {
 $selectedMonth = (string) ($_GET['month'] ?? date('Y-m'));
 if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $selectedMonth)) $selectedMonth = date('Y-m');
 $monthDate = $selectedMonth . '-01';
+$monthObject = new DateTimeImmutable($monthDate);
+$previousMonth = $monthObject->modify('-1 month')->format('Y-m');
+$nextMonth = $monthObject->modify('+1 month')->format('Y-m');
+$currentMonth = date('Y-m');
+$monthLabel = $monthObject->format('F Y');
+$previousMonthLabel = $monthObject->modify('-1 month')->format('M Y');
+$nextMonthLabel = $monthObject->modify('+1 month')->format('M Y');
+$previousMonthUrl = base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId, 'month'=>$previousMonth]));
+$nextMonthUrl = base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId, 'month'=>$nextMonth]));
+$currentMonthUrl = base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId, 'month'=>$currentMonth]));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -371,6 +381,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v40.css?v=20261007-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/vacation-income.css?v=20260914-2')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v41.css?v=20261012-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v45.css?v=20261021-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -378,7 +389,13 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <nav><a href="<?= e(base_url('admin/')) ?>">Properties</a><a href="<?= e(base_url('admin/property.php?id=' . $propertyId)) ?>">Property details</a><a href="<?= e(base_url()) ?>">View map</a></nav>
 </header>
 <main class="airbnb-wrap">
-  <div class="airbnb-title"><div><p class="eyebrow">Vacation rental tracker</p><h1><?= e($property['title']) ?></h1><p><?= e($property['address_line1'] . ', ' . $property['city'] . ', ' . $property['state']) ?> · Airbnb / VRBO</p></div><form method="get" class="reporting-month"><input type="hidden" name="property_id" value="<?= $propertyId ?>"><label>Reporting month<input type="month" name="month" value="<?= e($selectedMonth) ?>" onchange="this.form.submit()"></label></form></div>
+  <div class="airbnb-title"><div><p class="eyebrow">Vacation rental tracker</p><h1><?= e($property['title']) ?></h1><p><?= e($property['address_line1'] . ', ' . $property['city'] . ', ' . $property['state']) ?> · Airbnb / VRBO</p></div></div>
+  <div class="month-browser" aria-label="Choose reporting month">
+    <a class="month-step" href="<?= e($previousMonthUrl) ?>"><span aria-hidden="true">‹</span><small>Previous</small><strong><?= e($previousMonthLabel) ?></strong></a>
+    <form method="get" class="reporting-month"><input type="hidden" name="property_id" value="<?= $propertyId ?>"><label><span>Viewing month</span><input type="month" name="month" value="<?= e($selectedMonth) ?>" onchange="this.form.submit()"></label></form>
+    <a class="month-step month-step-next" href="<?= e($nextMonthUrl) ?>"><small>Next</small><strong><?= e($nextMonthLabel) ?></strong><span aria-hidden="true">›</span></a>
+    <?php if ($selectedMonth !== $currentMonth): ?><a class="current-month-link" href="<?= e($currentMonthUrl) ?>">This month</a><?php endif; ?>
+  </div>
   <?php if (isset($_GET['saved'])): ?><p class="alert success">Changes saved.</p><?php endif; ?>
   <?php if ($error): ?><p class="alert error"><?= e($error) ?></p><?php endif; ?>
 
@@ -439,12 +456,12 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       <details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_recurring"><input type="hidden" name="id" value="<?=$cost['id']?>"><label>Category<input name="category" value="<?=e($cost['category'])?>" required></label><label>Name<input name="name" value="<?=e($cost['name'])?>" required></label><label>Amount<input type="number" step="0.01" min="0" name="typical_amount" value="<?=e((string)$cost['typical_amount'])?>"></label><label>Frequency<select name="frequency"><?php foreach(['weekly','monthly','quarterly','annual'] as $frequency):?><option <?=$cost['frequency']===$frequency?'selected':''?>><?=e($frequency)?></option><?php endforeach;?></select></label><label class="check"><input type="checkbox" name="active" <?=$cost['active']?'checked':''?>> Active</label><label class="wide">Notes<input name="notes" value="<?=e($cost['notes'])?>"></label><button>Save</button></form><form method="post" class="delete-form" onsubmit="return confirm('Delete this recurring cost?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_recurring"><input type="hidden" name="id" value="<?=$cost['id']?>"><button>Delete</button></form></details>
     </article><?php endforeach;?></div>
 
-    <div class="month-heading"><div><p class="eyebrow">Month setup</p><strong><?= e(date('F Y', strtotime($monthDate))) ?></strong></div><form method="post"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="create_month"><button>Add recurring costs to this month</button></form></div>
+    <div class="month-heading"><div class="expense-month-nav"><a href="<?= e($previousMonthUrl . '#monthly') ?>" aria-label="Previous month">‹</a><div><p class="eyebrow">Expenses for</p><strong><?= e($monthLabel) ?></strong></div><a href="<?= e($nextMonthUrl . '#monthly') ?>" aria-label="Next month">›</a></div><form method="post"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="create_month"><button>Add recurring costs to this month</button></form></div>
     <div class="ledger"><div class="ledger-head"><span>Category</span><span>Expense</span><span>Amount</span><span>Paid</span><span></span></div>
       <?php foreach($expenses as $expense):?><div class="ledger-row"><span><?=e($expense['category'])?></span><span><strong><?=e($expense['description'])?></strong><?php if($expense['notes']):?><small><?=e($expense['notes'])?></small><?php endif;?></span><span><?= $expense['amount']!==null?money((float)$expense['amount']):'<em>Pending</em>'?></span><span><?=e($expense['paid_on']?:'—')?></span><details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_expense"><input type="hidden" name="id" value="<?=$expense['id']?>"><label>Category<input name="category" value="<?=e($expense['category'])?>" required></label><label class="wide">Description<input name="description" value="<?=e($expense['description'])?>" required></label><label>Amount<input type="number" step="0.01" min="0" name="amount" value="<?=e((string)$expense['amount'])?>"></label><label>Paid date<input type="date" name="paid_on" value="<?=e((string)$expense['paid_on'])?>"></label><label class="wide">Notes<input name="notes" value="<?=e($expense['notes'])?>"></label><button>Save</button></form><form method="post" class="delete-form" onsubmit="return confirm('Delete this expense?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_expense"><input type="hidden" name="id" value="<?=$expense['id']?>"><button>Delete</button></form></details></div><?php endforeach;?>
-      <?php if(!$expenses):?><p class="empty-state">No expenses recorded for this month yet.</p><?php endif;?>
+      <?php if(!$expenses):?><p class="empty-state">No expenses recorded for <?= e($monthLabel) ?> yet.</p><?php endif;?>
     </div>
-    <details class="add-panel ledger-add"><summary>Add one-time monthly expense</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_expense"><label>Category<input name="category" required></label><label class="wide">Description<input name="description" required></label><label>Amount<input type="number" step="0.01" min="0" name="amount"></label><label>Paid date<input type="date" name="paid_on"></label><label class="wide">Notes<input name="notes"></label><button>Save expense</button></form></details>
+    <details class="add-panel ledger-add"><summary>Add expense to <?= e($monthLabel) ?></summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_expense"><label>Category<input name="category" required></label><label class="wide">Description<input name="description" required></label><label>Amount<input type="number" step="0.01" min="0" name="amount"></label><label>Paid date<input type="date" name="paid_on"></label><label class="wide">Notes<input name="notes"></label><button>Save expense to <?= e($monthLabel) ?></button></form></details>
   </section>
 
   <?php include APP_ROOT . '/app/vacation-income-section.php'; ?>
