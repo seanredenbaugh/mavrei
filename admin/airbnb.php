@@ -382,6 +382,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/vacation-income.css?v=20260914-2')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v41.css?v=20261012-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v45.css?v=20261021-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v46.css?v=20261021-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -461,7 +462,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       <?php foreach($expenses as $expense):?><div class="ledger-row"><span><?=e($expense['category'])?></span><span><strong><?=e($expense['description'])?></strong><?php if($expense['notes']):?><small><?=e($expense['notes'])?></small><?php endif;?></span><span><?= $expense['amount']!==null?money((float)$expense['amount']):'<em>Pending</em>'?></span><span><?=e($expense['paid_on']?:'—')?></span><details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_expense"><input type="hidden" name="id" value="<?=$expense['id']?>"><label>Category<input name="category" value="<?=e($expense['category'])?>" required></label><label class="wide">Description<input name="description" value="<?=e($expense['description'])?>" required></label><label>Amount<input type="number" step="0.01" min="0" name="amount" value="<?=e((string)$expense['amount'])?>"></label><label>Paid date<input type="date" name="paid_on" value="<?=e((string)$expense['paid_on'])?>"></label><label class="wide">Notes<input name="notes" value="<?=e($expense['notes'])?>"></label><button>Save</button></form><form method="post" class="delete-form" onsubmit="return confirm('Delete this expense?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_expense"><input type="hidden" name="id" value="<?=$expense['id']?>"><button>Delete</button></form></details></div><?php endforeach;?>
       <?php if(!$expenses):?><p class="empty-state">No expenses recorded for <?= e($monthLabel) ?> yet.</p><?php endif;?>
     </div>
-    <details class="add-panel ledger-add"><summary>Add expense to <?= e($monthLabel) ?></summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_expense"><label>Category<input name="category" required></label><label class="wide">Description<input name="description" required></label><label>Amount<input type="number" step="0.01" min="0" name="amount"></label><label>Paid date<input type="date" name="paid_on"></label><label class="wide">Notes<input name="notes"></label><button>Save expense to <?= e($monthLabel) ?></button></form></details>
+    <details class="add-panel ledger-add"><summary>Add expense to <?= e($monthLabel) ?></summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_expense"><label>Category<input name="category" required></label><label class="wide">Description<input name="description" required></label><label>Amount<input type="number" step="0.01" min="0" name="amount"></label><label>Paid date<input type="date" name="paid_on"></label><label class="wide">Notes<input name="notes"></label><div class="add-popup-footer"><button type="button" class="edit-cancel add-expense-cancel">Cancel</button><button type="submit">Save expense to <?= e($monthLabel) ?></button></div></form></details>
   </section>
 
   <?php include APP_ROOT . '/app/vacation-income-section.php'; ?>
@@ -541,10 +542,22 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     footer.append(cancel, deleteForm);
   });
 
+  document.querySelectorAll('.add-expense-cancel').forEach(cancel => {
+    cancel.addEventListener('click', () => {
+      const panel = cancel.closest('.add-panel');
+      cancel.closest('form')?.reset();
+      if (panel) panel.open = false;
+    });
+  });
+
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
     const openEditor = document.querySelector('.income-edit[open], .row-actions[open]');
-    openEditor?.querySelector('.edit-cancel')?.click();
+    if (openEditor) {
+      openEditor.querySelector('.edit-cancel')?.click();
+      return;
+    }
+    document.querySelector('.add-panel[open] .add-expense-cancel')?.click();
   });
 
   const updateCollapseAllButton = () => {
