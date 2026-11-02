@@ -5,7 +5,62 @@ require_admin();
 
 header('Cache-Control: no-store, private');
 
-$propertyId = filter_input(INPUT_GET, 'property_id', FILTER_VALIDATE_INT) ?: 0;
+$uploadsDirectory = APP_ROOT . '/uploads/properties';
+$uploadsRoot = realpath($uploadsDirectory);
+$propertyId = ($_SERVER['REQUEST_METHOD'] === 'POST'
+    ? filter_input(INPUT_POST, 'property_id', FILTER_VALIDATE_INT)
+    : filter_input(INPUT_GET, 'property_id', FILTER_VALIDATE_INT)) ?: 0;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
+    $action = (string) ($_POST['action'] ?? '');
+    if ($action !== 'remove_missing' || !$propertyId) {
+        http_response_code(400);
+        exit('Invalid cleanup request.');
+    }
+
+    $photoStmt = db()->prepare('SELECT id,file_path FROM property_photos WHERE property_id=? ORDER BY sort_order,id');
+    $photoStmt->execute([$propertyId]);
+    $missingIds = [];
+    foreach ($photoStmt->fetchAll() as $photo) {
+        $relativePath = ltrim(str_replace('\\', '/', (string) $photo['file_path']), '/');
+        $resolvedPath = realpath(APP_ROOT . '/' . $relativePath);
+        $insideUploads = $uploadsRoot && $resolvedPath && ($resolvedPath === $uploadsRoot || str_starts_with($resolvedPath, $uploadsRoot . DIRECTORY_SEPARATOR));
+        if (!$insideUploads || !is_file($resolvedPath)) $missingIds[] = (int) $photo['id'];
+    }
+
+    if ($missingIds) {
+        db()->beginTransaction();
+        try {
+            $placeholders = implode(',', array_fill(0, count($missingIds), '?'));
+            $delete = db()->prepare("DELETE FROM property_photos WHERE property_id=? AND id IN ({$placeholders})");
+            $delete->execute(array_merge([$propertyId], $missingIds));
+
+            $featuredStmt = db()->prepare('SELECT featured_photo FROM properties WHERE id=?');
+            $featuredStmt->execute([$propertyId]);
+            $featuredPath = $featuredStmt->fetchColumn();
+            $featuredStillExists = false;
+            if (is_string($featuredPath) && $featuredPath !== '') {
+                $checkFeatured = db()->prepare('SELECT COUNT(*) FROM property_photos WHERE property_id=? AND file_path=?');
+                $checkFeatured->execute([$propertyId, $featuredPath]);
+                $featuredStillExists = (int) $checkFeatured->fetchColumn() > 0;
+            }
+            if (!$featuredStillExists) {
+                $nextStmt = db()->prepare('SELECT file_path FROM property_photos WHERE property_id=? ORDER BY sort_order,id LIMIT 1');
+                $nextStmt->execute([$propertyId]);
+                db()->prepare('UPDATE properties SET featured_photo=? WHERE id=?')->execute([$nextStmt->fetchColumn() ?: null, $propertyId]);
+            }
+            db()->commit();
+        } catch (Throwable $exception) {
+            if (db()->inTransaction()) db()->rollBack();
+            throw $exception;
+        }
+    }
+
+    header('Location: ' . base_url('admin/photo-diagnostics.php?' . http_build_query(['property_id'=>$propertyId, 'removed'=>count($missingIds)])));
+    exit;
+}
+
 $params = [];
 $where = '';
 if ($propertyId) {
@@ -22,8 +77,6 @@ $stmt = db()->prepare("SELECT p.id AS property_id, p.title, p.slug, p.featured_p
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
-$uploadsDirectory = APP_ROOT . '/uploads/properties';
-$uploadsRoot = realpath($uploadsDirectory);
 $directoryExists = is_dir($uploadsDirectory);
 $directoryReadable = $directoryExists && is_readable($uploadsDirectory);
 $directoryWritable = $directoryExists && is_writable($uploadsDirectory);
@@ -58,6 +111,7 @@ foreach ($rows as &$row) {
     $row['url'] = base_url($relativePath) . '?photo_check=' . ($modified ?: time());
 }
 unset($row);
+$missingCount = count($rows) - $foundCount;
 
 function diagnostic_bytes(int $bytes): string
 {
@@ -73,7 +127,7 @@ function diagnostic_bytes(int $bytes): string
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Photo diagnostics | Admin</title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/photo-diagnostics-v47.css?v=20261102-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/photo-diagnostics-v47.css?v=20261102-2')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -81,7 +135,9 @@ function diagnostic_bytes(int $bytes): string
   <nav><a href="<?= e(base_url('admin/')) ?>">Properties</a><?php if ($propertyId): ?><a href="<?= e(base_url('admin/property.php?id=' . $propertyId . '#property-photos')) ?>">Back to property</a><?php endif; ?><a href="<?= e(base_url()) ?>">View map</a></nav>
 </header>
 <main class="diagnostic-wrap">
-  <div class="diagnostic-title"><div><p class="eyebrow">Read-only server test</p><h1>Photo diagnostics</h1><p>This page does not change or delete any files.</p></div><button type="button" id="rerun-http">Recheck browser access</button></div>
+  <div class="diagnostic-title"><div><p class="eyebrow">Server file test</p><h1>Photo diagnostics</h1><p>Testing is read-only. Cleanup runs only when you confirm it below.</p></div><button type="button" id="rerun-http">Recheck browser access</button></div>
+
+  <?php if (isset($_GET['removed'])): ?><p class="alert success"><?= (int) $_GET['removed'] ?> missing photo record<?= (int) $_GET['removed'] === 1 ? '' : 's' ?> removed. No existing image files were deleted.</p><?php endif; ?>
 
   <section class="diagnostic-summary">
     <article><span>Database records</span><strong><?= count($rows) ?></strong></article>
@@ -96,6 +152,18 @@ function diagnostic_bytes(int $bytes): string
     <?= $directoryReadable ? 'readable' : 'not readable' ?> ·
     <?= $directoryWritable ? 'writable' : 'not writable' ?> · permissions <?= e($directoryPermissions) ?>
   </section>
+
+  <?php if ($propertyId && $missingCount > 0): ?>
+  <section class="cleanup-panel">
+    <div><strong>Ready to re-upload?</strong><span>Remove <?= $missingCount ?> database record<?= $missingCount === 1 ? '' : 's' ?> whose image files are already missing. The <?= $foundCount ?> existing file<?= $foundCount === 1 ? '' : 's' ?> will be kept.</span></div>
+    <form method="post" onsubmit="return confirm('Remove <?= $missingCount ?> missing photo records? Existing image files will be kept.')">
+      <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+      <input type="hidden" name="property_id" value="<?= $propertyId ?>">
+      <input type="hidden" name="action" value="remove_missing">
+      <button type="submit">Remove missing records</button>
+    </form>
+  </section>
+  <?php endif; ?>
 
   <?php if (!$rows): ?><p class="empty-diagnostic">No photo records were found<?= $propertyId ? ' for this property' : '' ?>.</p><?php endif; ?>
   <div class="diagnostic-list">
