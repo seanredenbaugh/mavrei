@@ -96,7 +96,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><?= e($id ? 'Edit property' : 'Add property') ?> | Admin</title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
-  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20261015-3')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/property-photos-admin.css?v=20261102-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -160,6 +160,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
       <?php if ($photoStatus === 'repaired'): ?><p class="alert success"><?= (int) ($_GET['repaired'] ?? 0) ?> JPEG photo<?= (int) ($_GET['repaired'] ?? 0) === 1 ? '' : 's' ?> repaired and optimized.<?php if ((int) ($_GET['repair_failed'] ?? 0)): ?> <?= (int) $_GET['repair_failed'] ?> could not be repaired.<?php endif; ?><?php if ((int) ($_GET['not_jpeg'] ?? 0)): ?> <?= (int) $_GET['not_jpeg'] ?> non-JPEG photo<?= (int) $_GET['not_jpeg'] === 1 ? ' was' : 's were' ?> left unchanged.<?php endif; ?></p><?php endif; ?>
       <?php if ($photoStatus === 'repair_unavailable'): ?><p class="alert error">JPEG repair is unavailable because this server does not have GD or ImageMagick enabled.</p><?php endif; ?>
       <?php if (in_array($photoStatus, ['error','notfound'], true)): ?><p class="alert error">The photo change could not be completed.</p><?php endif; ?>
+      <a class="photo-diagnostic-link" href="<?= e(base_url('admin/photo-diagnostics.php?property_id=' . $id)) ?>">Diagnose broken photos</a>
 
       <form id="photo-upload-form" class="photo-upload" method="post" enctype="multipart/form-data" action="<?= e(base_url('admin/photos.php')) ?>">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
