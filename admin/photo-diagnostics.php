@@ -19,10 +19,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit('Invalid cleanup request.');
     }
 
-    $photoStmt = db()->prepare('SELECT id,file_path FROM property_photos WHERE property_id=? ORDER BY sort_order,id');
+    $photoStmt = db()->prepare('SELECT id,file_path,OCTET_LENGTH(image_data) AS database_bytes FROM property_photos WHERE property_id=? ORDER BY sort_order,id');
     $photoStmt->execute([$propertyId]);
     $missingIds = [];
     foreach ($photoStmt->fetchAll() as $photo) {
+        if ((int) ($photo['database_bytes'] ?? 0) > 0) continue;
         $relativePath = ltrim(str_replace('\\', '/', (string) $photo['file_path']), '/');
         $resolvedPath = realpath(APP_ROOT . '/' . $relativePath);
         $insideUploads = $uploadsRoot && $resolvedPath && ($resolvedPath === $uploadsRoot || str_starts_with($resolvedPath, $uploadsRoot . DIRECTORY_SEPARATOR));
@@ -69,7 +70,9 @@ if ($propertyId) {
 }
 
 $stmt = db()->prepare("SELECT p.id AS property_id, p.title, p.slug, p.featured_photo,
-                              ph.id AS photo_id, ph.file_path, ph.caption, ph.sort_order
+                              ph.id AS photo_id, ph.file_path, ph.caption, ph.sort_order,
+                              ph.mime_type, ph.file_size, ph.created_at,
+                              OCTET_LENGTH(ph.image_data) AS database_bytes
                        FROM properties p
                        JOIN property_photos ph ON ph.property_id = p.id
                        {$where}
@@ -87,16 +90,28 @@ $decodableCount = 0;
 
 foreach ($rows as &$row) {
     $relativePath = ltrim(str_replace('\\', '/', (string) $row['file_path']), '/');
-    $expectedPath = APP_ROOT . '/' . $relativePath;
-    $resolvedPath = realpath($expectedPath);
-    $insideUploads = $uploadsRoot && $resolvedPath && ($resolvedPath === $uploadsRoot || str_starts_with($resolvedPath, $uploadsRoot . DIRECTORY_SEPARATOR));
-    $exists = $insideUploads && is_file($resolvedPath);
-    $readable = $exists && is_readable($resolvedPath);
-    $imageInfo = $readable ? @getimagesize($resolvedPath) : false;
-    $mime = $readable && $finfo ? (string) @$finfo->file($resolvedPath) : '';
-    $size = $readable ? (int) @filesize($resolvedPath) : 0;
-    $modified = $readable ? (int) @filemtime($resolvedPath) : 0;
-    $permissions = $exists ? substr(sprintf('%o', fileperms($resolvedPath)), -4) : '—';
+    $databaseBytes = (int) ($row['database_bytes'] ?? 0);
+    $storedInDatabase = $databaseBytes > 0;
+    if ($storedInDatabase) {
+        $mime = trim((string) ($row['mime_type'] ?? ''));
+        $exists = true;
+        $readable = true;
+        $imageInfo = str_starts_with(strtolower($mime), 'image/') ? true : false;
+        $size = $databaseBytes;
+        $modified = !empty($row['created_at']) ? (int) strtotime((string) $row['created_at']) : 0;
+        $permissions = 'Database';
+    } else {
+        $expectedPath = APP_ROOT . '/' . $relativePath;
+        $resolvedPath = realpath($expectedPath);
+        $insideUploads = $uploadsRoot && $resolvedPath && ($resolvedPath === $uploadsRoot || str_starts_with($resolvedPath, $uploadsRoot . DIRECTORY_SEPARATOR));
+        $exists = $insideUploads && is_file($resolvedPath);
+        $readable = $exists && is_readable($resolvedPath);
+        $imageInfo = $readable ? @getimagesize($resolvedPath) : false;
+        $mime = $readable && $finfo ? (string) @$finfo->file($resolvedPath) : '';
+        $size = $readable ? (int) @filesize($resolvedPath) : 0;
+        $modified = $readable ? (int) @filemtime($resolvedPath) : 0;
+        $permissions = $exists ? substr(sprintf('%o', fileperms($resolvedPath)), -4) : '—';
+    }
     if ($exists) $foundCount++;
     if ($imageInfo) $decodableCount++;
     $row['relative_path'] = $relativePath;
@@ -107,8 +122,9 @@ foreach ($rows as &$row) {
     $row['size'] = $size;
     $row['modified'] = $modified;
     $row['permissions'] = $permissions;
-    $row['dimensions'] = $imageInfo ? ((int) $imageInfo[0] . ' × ' . (int) $imageInfo[1]) : '—';
-    $row['url'] = base_url($relativePath) . '?photo_check=' . ($modified ?: time());
+    $row['storage'] = $storedInDatabase ? 'Database' : 'File';
+    $row['dimensions'] = is_array($imageInfo) ? ((int) $imageInfo[0] . ' × ' . (int) $imageInfo[1]) : ($storedInDatabase && $imageInfo ? 'Valid image' : '—');
+    $row['url'] = property_photo_url((int) $row['photo_id'], (string) $row['file_path']) . '&photo_check=' . ($modified ?: time());
 }
 unset($row);
 $missingCount = count($rows) - $foundCount;
@@ -141,7 +157,7 @@ function diagnostic_bytes(int $bytes): string
 
   <section class="diagnostic-summary">
     <article><span>Database records</span><strong><?= count($rows) ?></strong></article>
-    <article class="<?= $foundCount === count($rows) ? 'good' : 'bad' ?>"><span>Files found</span><strong><?= $foundCount ?> / <?= count($rows) ?></strong></article>
+    <article class="<?= $foundCount === count($rows) ? 'good' : 'bad' ?>"><span>Photos found</span><strong><?= $foundCount ?> / <?= count($rows) ?></strong></article>
     <article class="<?= $decodableCount === count($rows) ? 'good' : 'bad' ?>"><span>Readable images</span><strong><?= $decodableCount ?> / <?= count($rows) ?></strong></article>
     <article id="http-summary"><span>Browser access</span><strong>Checking…</strong></article>
   </section>
@@ -177,7 +193,8 @@ function diagnostic_bytes(int $bytes): string
         <div class="diagnostic-property"><strong><?= e($row['title']) ?></strong><span>Photo #<?= (int) $row['photo_id'] ?></span></div>
         <code><?= e($row['relative_path']) ?></code>
         <dl>
-          <div><dt>File</dt><dd><?= $row['exists'] ? 'Found' : 'Missing' ?></dd></div>
+          <div><dt>Storage</dt><dd><?= e($row['storage']) ?></dd></div>
+          <div><dt>Photo</dt><dd><?= $row['exists'] ? 'Found' : 'Missing' ?></dd></div>
           <div><dt>Readable</dt><dd><?= $row['readable'] ? 'Yes' : 'No' ?></dd></div>
           <div><dt>Image data</dt><dd><?= $row['decodable'] ? 'Valid' : 'Invalid' ?></dd></div>
           <div><dt>HTTP</dt><dd class="http-result">Checking…</dd></div>

@@ -168,7 +168,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
         <input type="hidden" name="action" value="upload">
         <label>Select photos<input id="photo-upload-input" type="file" name="photos[]" accept=".jpg,.jpeg,image/jpeg,image/png,image/webp,image/gif" multiple required></label>
         <button type="submit">Upload photos</button>
-        <small>JPEG, PNG, WebP, or GIF. Your browser converts JPEGs to a web-safe format before upload. Up to 20 at a time and 15 MB per photo; your host's total upload limit also applies.</small>
+        <small>JPEG, PNG, WebP, or GIF. Your browser converts JPEGs to a web-safe format, and new photos are stored in the database so Git deployments cannot erase them. Up to 20 at a time and 15 MB per photo.</small>
         <span id="photo-upload-status" class="photo-upload-status" role="status" aria-live="polite"></span>
       </form>
 
@@ -178,7 +178,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
         <div id="photo-grid" class="photo-grid">
           <?php foreach ($photos as $index => $photo): $isFeatured = $property['featured_photo'] === $photo['file_path']; ?>
             <article class="photo-item <?= $isFeatured ? 'is-featured' : '' ?>" draggable="true" data-photo-id="<?= (int) $photo['id'] ?>">
-              <div class="photo-image-wrap"><img src="<?= e(base_url($photo['file_path'])) ?>" alt="<?= e($photo['alt_text'] ?: $property['title']) ?>" loading="lazy"><span class="drag-handle" title="Drag to reorder">Drag</span><?php if ($isFeatured): ?><b>Cover photo</b><?php endif; ?></div>
+              <div class="photo-image-wrap"><img src="<?= e(property_photo_url((int) $photo['id'], (string) $photo['file_path'])) ?>" alt="<?= e($photo['alt_text'] ?: $property['title']) ?>" loading="lazy"><span class="drag-handle" title="Drag to reorder">Drag</span><?php if ($isFeatured): ?><b>Cover photo</b><?php endif; ?></div>
               <form class="photo-caption-form" method="post" action="<?= e(base_url('admin/photos.php')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="property_id" value="<?= $id ?>">

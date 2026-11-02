@@ -104,10 +104,6 @@ try {
     $skipped = 0;
     if ($files && is_array($files['name'] ?? null)) {
         $allowed = ['image/jpeg'=>'jpg', 'image/png'=>'png', 'image/webp'=>'webp', 'image/gif'=>'gif'];
-        $directory = APP_ROOT . '/uploads/properties/' . $property['slug'];
-        if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
-            throw new RuntimeException('The property photo folder could not be created.');
-        }
         $orderStmt = db()->prepare('SELECT COALESCE(MAX(sort_order), 0) FROM property_photos WHERE property_id = ?');
         $orderStmt->execute([$propertyId]);
         $order = (int)$orderStmt->fetchColumn();
@@ -124,22 +120,31 @@ try {
             $extension = $allowed[$mime] ?? null;
             if (!$extension || !getimagesize($tmp)) { $skipped++; continue; }
             $filename = bin2hex(random_bytes(12)) . '.' . $extension;
-            $destination = $directory . '/' . $filename;
+            $processedPath = $tmp;
+            $temporaryOutput = null;
             if ($mime === 'image/jpeg' && photo_processor_available()) {
-                if (!normalize_jpeg($tmp, $destination)) { $skipped++; continue; }
-            } elseif (!move_uploaded_file($tmp, $destination)) {
-                $skipped++;
-                continue;
+                $temporaryOutput = tempnam(sys_get_temp_dir(), 'mavrei_photo_');
+                if (!$temporaryOutput || !normalize_jpeg($tmp, $temporaryOutput)) {
+                    if ($temporaryOutput && is_file($temporaryOutput)) @unlink($temporaryOutput);
+                    $skipped++;
+                    continue;
+                }
+                $processedPath = $temporaryOutput;
             }
-            $savedImage = @getimagesize($destination);
-            if (!$savedImage || !is_file($destination) || !is_readable($destination) || filesize($destination) < 1) {
-                if (is_file($destination)) @unlink($destination);
+            $savedImage = @getimagesize($processedPath);
+            $savedMime = (string) $finfo->file($processedPath);
+            $savedExtension = $allowed[$savedMime] ?? null;
+            $imageData = is_file($processedPath) && is_readable($processedPath) ? file_get_contents($processedPath) : false;
+            if ($temporaryOutput && is_file($temporaryOutput)) @unlink($temporaryOutput);
+            if (!$savedImage || !$savedExtension || !is_string($imageData) || $imageData === '') {
                 $skipped++;
                 error_log('Property photo upload produced an unreadable file: ' . $originalName);
                 continue;
             }
-            $path = 'uploads/properties/' . $property['slug'] . '/' . $filename;
-            db()->prepare('INSERT INTO property_photos(property_id,file_path,alt_text,sort_order) VALUES (?,?,?,?)')->execute([$propertyId,$path,substr($originalName,0,255),++$order]);
+            $filename = pathinfo($filename, PATHINFO_FILENAME) . '.' . $savedExtension;
+            $path = 'database:' . $filename;
+            db()->prepare('INSERT INTO property_photos(property_id,file_path,image_data,mime_type,file_size,alt_text,sort_order) VALUES (?,?,?,?,?,?,?)')
+                ->execute([$propertyId,$path,$imageData,$savedMime,strlen($imageData),substr($originalName,0,255),++$order]);
             $uploaded++;
             if (!$property['featured_photo']) {
                 db()->prepare('UPDATE properties SET featured_photo=? WHERE id=?')->execute([$path,$propertyId]);
@@ -161,6 +166,10 @@ try {
         $failed = 0;
         $notJpeg = 0;
         foreach ($propertyPhotos as $photo) {
+            if (str_starts_with((string) $photo['file_path'], 'database:')) {
+                $notJpeg++;
+                continue;
+            }
             $absolutePath = realpath(APP_ROOT . '/' . $photo['file_path']);
             if (!$uploadsRoot || !$absolutePath || !str_starts_with($absolutePath, $uploadsRoot . DIRECTORY_SEPARATOR) || !is_file($absolutePath)) {
                 $failed++;
@@ -229,9 +238,11 @@ try {
         $redirect['photos'] = 'featured';
     }
     if ($photo && $action === 'delete') {
-        $uploadsRoot = realpath(APP_ROOT . '/uploads/properties');
-        $target = realpath(APP_ROOT . '/' . $photo['file_path']);
-        if ($uploadsRoot && $target && str_starts_with($target, $uploadsRoot . DIRECTORY_SEPARATOR)) unlink($target);
+        if (!str_starts_with((string) $photo['file_path'], 'database:')) {
+            $uploadsRoot = realpath(APP_ROOT . '/uploads/properties');
+            $target = realpath(APP_ROOT . '/' . $photo['file_path']);
+            if ($uploadsRoot && $target && str_starts_with($target, $uploadsRoot . DIRECTORY_SEPARATOR)) unlink($target);
+        }
         db()->prepare('DELETE FROM property_photos WHERE id=? AND property_id=?')->execute([$photoId,$propertyId]);
         if ($property['featured_photo'] === $photo['file_path']) {
             $next = db()->prepare('SELECT file_path FROM property_photos WHERE property_id=? ORDER BY sort_order,id LIMIT 1');

@@ -9,6 +9,7 @@ $sql = "SELECT p.id, p.slug, p.title, p.property_type, p.status,
                p.address_line1, p.address_line2, p.city, p.state, p.postal_code,
                p.latitude, p.longitude, p.bedrooms, p.bathrooms, p.square_feet,
                p.units, p.featured_photo,
+               (SELECT ph.id FROM property_photos ph WHERE ph.property_id=p.id AND ph.file_path=p.featured_photo ORDER BY ph.id LIMIT 1) AS featured_photo_id,
                (SELECT COUNT(*) FROM property_photos ph WHERE ph.property_id = p.id) AS photo_count
         FROM properties p
         WHERE p.is_visible = 1
@@ -23,8 +24,9 @@ try {
         $property['photo_count'] = (int) $property['photo_count'];
         $property['detail_url'] = base_url('property.php?id=' . $property['id']);
         if ($property['featured_photo']) {
-            $property['featured_photo'] = base_url($property['featured_photo']);
+            $property['featured_photo'] = property_photo_url((int) ($property['featured_photo_id'] ?? 0), (string) $property['featured_photo']);
         }
+        unset($property['featured_photo_id']);
     }
 
     echo json_encode(['properties' => $properties], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

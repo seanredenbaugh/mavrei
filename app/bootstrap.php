@@ -294,6 +294,28 @@ function ensure_property_schema(): void
     if (!$captionColumn) {
         db()->exec("ALTER TABLE property_photos ADD caption VARCHAR(255) NULL AFTER file_path");
     }
+
+    $photoColumns = [];
+    foreach (db()->query('SHOW COLUMNS FROM property_photos')->fetchAll() as $column) {
+        $photoColumns[(string) $column['Field']] = true;
+    }
+    if (!isset($photoColumns['image_data'])) {
+        db()->exec('ALTER TABLE property_photos ADD image_data LONGBLOB NULL AFTER file_path');
+    }
+    if (!isset($photoColumns['mime_type'])) {
+        db()->exec('ALTER TABLE property_photos ADD mime_type VARCHAR(80) NULL AFTER image_data');
+    }
+    if (!isset($photoColumns['file_size'])) {
+        db()->exec('ALTER TABLE property_photos ADD file_size INT UNSIGNED NULL AFTER mime_type');
+    }
+}
+
+function property_photo_url(int $photoId, string $filePath = ''): string
+{
+    if ($photoId > 0) {
+        return base_url('photo.php?id=' . $photoId);
+    }
+    return $filePath !== '' ? base_url($filePath) : '';
 }
 
 function site_setting(string $key, string $default = ''): string
