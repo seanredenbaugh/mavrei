@@ -188,7 +188,7 @@ function diagnostic_bytes(int $bytes): string
       $isFeatured = $row['featured_photo'] === $row['file_path'];
   ?>
     <article class="diagnostic-photo <?= $serverOk ? 'server-good' : 'server-bad' ?>" data-photo-url="<?= e($row['url']) ?>">
-      <div class="diagnostic-preview"><img src="<?= e($row['url']) ?>" alt="" loading="lazy"><?php if ($isFeatured): ?><b>Cover</b><?php endif; ?></div>
+      <div class="diagnostic-preview"><img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" data-resilient-src="<?= e($row['url']) ?>" alt="" decoding="async"><?php if ($isFeatured): ?><b>Cover</b><?php endif; ?></div>
       <div class="diagnostic-info">
         <div class="diagnostic-property"><strong><?= e($row['title']) ?></strong><span>Photo #<?= (int) $row['photo_id'] ?></span></div>
         <code><?= e($row['relative_path']) ?></code>
@@ -210,6 +210,7 @@ function diagnostic_bytes(int $bytes): string
   <?php endforeach; ?>
   </div>
 </main>
+<script src="<?= e(base_url('assets/js/resilient-photos-v52.js?v=20261104-1')) ?>"></script>
 <script>
 (() => {
   const photos = Array.from(document.querySelectorAll('[data-photo-url]'));
@@ -220,23 +221,36 @@ function diagnostic_bytes(int $bytes): string
     button.disabled = true;
     summary.classList.remove('good', 'bad');
     summary.querySelector('strong').textContent = 'Checking…';
+    await (window.mavreiPhotosReady || Promise.resolve());
     let passed = 0;
-    await Promise.all(photos.map(async card => {
+    let nextIndex = 0;
+    const checkCard = async card => {
       const result = card.querySelector('.http-result');
       result.textContent = 'Checking…';
       result.className = 'http-result';
-      try {
-        const response = await fetch(card.dataset.photoUrl + '&browser=' + Date.now(), {cache: 'no-store', credentials: 'same-origin'});
-        const type = response.headers.get('content-type') || 'no content type';
-        const ok = response.ok && type.toLowerCase().startsWith('image/');
-        result.textContent = `${response.status} · ${type}`;
-        result.classList.add(ok ? 'http-good' : 'http-bad');
-        if (ok) passed++;
-      } catch (error) {
-        result.textContent = 'Request failed';
-        result.classList.add('http-bad');
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const response = await fetch(card.dataset.photoUrl + '&browser=' + Date.now() + '-' + attempt, {cache: 'no-store', credentials: 'same-origin'});
+          const type = response.headers.get('content-type') || 'no content type';
+          await response.blob();
+          const ok = response.ok && type.toLowerCase().startsWith('image/');
+          result.textContent = `${response.status} · ${type}`;
+          if (ok) {
+            result.classList.add('http-good');
+            passed++;
+            return;
+          }
+        } catch (error) {
+          result.textContent = 'Request failed';
+        }
+        if (attempt < 3) await new Promise(resolve => window.setTimeout(resolve, attempt * 900));
       }
-    }));
+      result.classList.add('http-bad');
+    };
+    const worker = async () => {
+      while (nextIndex < photos.length) await checkCard(photos[nextIndex++]);
+    };
+    await Promise.all([worker(), worker()]);
     summary.querySelector('strong').textContent = `${passed} / ${photos.length}`;
     summary.classList.add(passed === photos.length ? 'good' : 'bad');
     button.disabled = false;

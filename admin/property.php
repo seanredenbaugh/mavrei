@@ -178,7 +178,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
         <div id="photo-grid" class="photo-grid">
           <?php foreach ($photos as $index => $photo): $isFeatured = $property['featured_photo'] === $photo['file_path']; ?>
             <article class="photo-item <?= $isFeatured ? 'is-featured' : '' ?>" draggable="true" data-photo-id="<?= (int) $photo['id'] ?>">
-              <div class="photo-image-wrap"><img src="<?= e(property_photo_url((int) $photo['id'], (string) $photo['file_path'])) ?>" alt="<?= e($photo['alt_text'] ?: $property['title']) ?>" loading="lazy"><span class="drag-handle" title="Drag to reorder">Drag</span><?php if ($isFeatured): ?><b>Cover photo</b><?php endif; ?></div>
+              <div class="photo-image-wrap"><img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" data-resilient-src="<?= e(property_photo_url((int) $photo['id'], (string) $photo['file_path'])) ?>" alt="<?= e($photo['alt_text'] ?: $property['title']) ?>" decoding="async"><span class="drag-handle" title="Drag to reorder">Drag</span><?php if ($isFeatured): ?><b>Cover photo</b><?php endif; ?></div>
               <form class="photo-caption-form" method="post" action="<?= e(base_url('admin/photos.php')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="property_id" value="<?= $id ?>">
@@ -202,6 +202,7 @@ $photoStatus = (string) ($_GET['photos'] ?? '');
     <?php endif; ?>
   </section>
 </main>
+<script src="<?= e(base_url('assets/js/resilient-photos-v52.js?v=20261104-1')) ?>"></script>
 <script>
 const propertyType=document.querySelector('[name="property_type"]');
 const propertyStatus=document.querySelector('[name="status"]');

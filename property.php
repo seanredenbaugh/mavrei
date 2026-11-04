@@ -28,7 +28,7 @@ $photos = $photoStmt->fetchAll();
   <header class="detail-header"><a href="<?= e(base_url()) ?>">← Back to map</a><a class="logo-home" href="<?= e(base_url()) ?>"><img src="<?= e(base_url('assets/img/mavrei-logo-transparent.png?v=20260910-3')) ?>" alt="Maverick Real Estate Investments"></a><?php if (is_admin()): ?><a href="<?= e(base_url('admin/property.php?id=' . $property['id'])) ?>">Edit property</a><?php else: ?><span></span><?php endif; ?></header>
   <main class="detail-wrap">
     <div class="detail-title"><div><span class="status-pill <?= e($property['property_type'] === 'house' ? $property['status'] : $property['property_type']) ?>"><?= e(status_label($property['status'])) ?></span><p class="eyebrow"><?= e(type_label($property['property_type'])) ?></p><h1><?= e($property['title']) ?></h1><p><?= e($property['address_line1']) ?>, <?= e($property['city']) ?>, <?= e($property['state']) ?> <?= e($property['postal_code']) ?></p></div></div>
-    <?php if ($photos): ?><section class="gallery"><?php foreach ($photos as $index => $photo): $caption = trim((string) ($photo['caption'] ?? '')); $photoUrl = property_photo_url((int) $photo['id'], (string) $photo['file_path']); ?><button class="gallery-photo<?= $index === 0 ? ' primary' : '' ?>" data-full="<?= e($photoUrl) ?>" data-caption="<?= e($caption) ?>"><img src="<?= e($photoUrl) ?>" alt="<?= e($caption ?: ($photo['alt_text'] ?: $property['title'])) ?>" loading="<?= $index > 3 ? 'lazy' : 'eager' ?>"><?php if ($caption !== ''): ?><span class="gallery-caption"><?= e($caption) ?></span><?php endif; ?></button><?php endforeach; ?></section><?php endif; ?>
+    <?php if ($photos): ?><section class="gallery"><?php foreach ($photos as $index => $photo): $caption = trim((string) ($photo['caption'] ?? '')); $photoUrl = property_photo_url((int) $photo['id'], (string) $photo['file_path']); ?><button class="gallery-photo<?= $index === 0 ? ' primary' : '' ?>" data-full="<?= e($photoUrl) ?>" data-caption="<?= e($caption) ?>"><img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" data-resilient-src="<?= e($photoUrl) ?>" alt="<?= e($caption ?: ($photo['alt_text'] ?: $property['title'])) ?>" decoding="async"><?php if ($caption !== ''): ?><span class="gallery-caption"><?= e($caption) ?></span><?php endif; ?></button><?php endforeach; ?></section><?php endif; ?>
     <section class="facts">
       <div><strong><?= e($property['bedrooms'] ?: '—') ?></strong><span>Bedrooms</span></div>
       <div><strong><?= e($property['bathrooms'] ?: '—') ?></strong><span>Bathrooms</span></div>
@@ -44,6 +44,7 @@ $photos = $photoStmt->fetchAll();
     <button type="button" class="lightbox-nav lightbox-next" aria-label="Next photo">›</button>
     <div class="lightbox-footer"><p class="lightbox-caption"></p><span class="lightbox-count" aria-live="polite"></span></div>
   </dialog>
+  <script src="<?= e(base_url('assets/js/resilient-photos-v52.js?v=20261104-1')) ?>"></script>
   <script>
   (() => {
     const box = document.querySelector('#lightbox');
@@ -56,11 +57,22 @@ $photos = $photoStmt->fetchAll();
     const previous = box.querySelector('.lightbox-prev');
     const next = box.querySelector('.lightbox-next');
     let currentIndex = 0;
+    let lightboxAttempt = 0;
+
+    image.addEventListener('error', () => {
+      if (!box.open || lightboxAttempt >= 3) return;
+      lightboxAttempt += 1;
+      const source = photos[currentIndex].dataset.full;
+      window.setTimeout(() => {
+        image.src = window.mavreiPhotoRetryUrl ? window.mavreiPhotoRetryUrl(source, lightboxAttempt) : source;
+      }, lightboxAttempt * 700);
+    });
 
     const showPhoto = index => {
       currentIndex = (index + photos.length) % photos.length;
       const photo = photos[currentIndex];
       const thumbnail = photo.querySelector('img');
+      lightboxAttempt = 0;
       image.src = photo.dataset.full;
       image.alt = thumbnail?.alt || 'Property photo';
       caption.textContent = photo.dataset.caption || '';
