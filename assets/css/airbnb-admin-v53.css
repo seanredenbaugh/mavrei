@@ -1,0 +1,56 @@
+.ledger-add[open]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(17, 24, 39, .48);
+}
+
+.ledger-add > .edit-grid {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  z-index: 50;
+  width: min(720px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: 0;
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  overscroll-behavior: contain;
+}
+
+.ledger-add .add-popup-footer {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.ledger-add .add-popup-footer button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 720px) {
+  .ledger-add > .edit-grid {
+    inset: 16px auto auto 50%;
+    grid-template-columns: 1fr;
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 32px);
+    transform: translateX(-50%);
+  }
+
+  .ledger-add > .edit-grid .wide {
+    grid-column: auto;
+  }
+
+  .ledger-add .add-popup-footer {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-add .add-popup-footer button {
+    width: 100%;
+  }
+}
