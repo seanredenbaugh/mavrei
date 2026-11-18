@@ -404,14 +404,6 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 </header>
 <main class="airbnb-wrap">
   <div class="airbnb-title"><div><p class="eyebrow"><?= $rehabOnly ? 'Project archive' : ($notesOnly ? 'Quick reference' : ($expensesOnly ? 'Operating costs' : ($incomeOnly ? 'Bookings and payouts' : 'Vacation rental tracker'))) ?></p><h1><?= $rehabOnly ? 'Setup and rehab' : ($notesOnly ? 'Property notes' : ($expensesOnly ? 'Monthly expenses' : ($incomeOnly ? 'Income' : e($property['title'])))) ?></h1><p><?= ($rehabOnly || $notesOnly || $expensesOnly || $incomeOnly) ? e($property['title'] . ' · ' . $property['address_line1']) : e($property['address_line1'] . ', ' . $property['city'] . ', ' . $property['state']) . ' · Airbnb / VRBO' ?></p></div></div>
-  <?php if ($expensesOnly): ?>
-  <div class="month-browser" aria-label="Choose reporting month">
-    <a class="month-step" href="<?= e($previousMonthUrl) ?>"><span aria-hidden="true">‹</span><small>Previous</small><strong><?= e($previousMonthLabel) ?></strong></a>
-    <form method="get" class="reporting-month"><input type="hidden" name="property_id" value="<?= $propertyId ?>"><label><span>Viewing month</span><input type="month" name="month" value="<?= e($selectedMonth) ?>" onchange="this.form.submit()"></label></form>
-    <a class="month-step month-step-next" href="<?= e($nextMonthUrl) ?>"><small>Next</small><strong><?= e($nextMonthLabel) ?></strong><span aria-hidden="true">›</span></a>
-    <?php if ($selectedMonth !== $currentMonth): ?><a class="current-month-link" href="<?= e($currentMonthUrl) ?>">This month</a><?php endif; ?>
-  </div>
-  <?php endif; ?>
   <?php if (isset($_GET['saved'])): ?><p class="alert success">Changes saved.</p><?php endif; ?>
   <?php if ($error): ?><p class="alert error"><?= e($error) ?></p><?php endif; ?>
 
@@ -485,6 +477,11 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
         <label>Category<input name="category" required></label><label class="wide">Name<input name="name" required></label><label>Typical amount<input type="number" step="0.01" min="0" name="typical_amount"></label>
         <label>Frequency<select name="frequency"><option>monthly</option><option>weekly</option><option>quarterly</option><option>annual</option></select></label><label class="check"><input type="checkbox" name="active" checked> Active</label><label class="wide">Notes<input name="notes"></label><button>Save recurring cost</button>
       </form></details>
+    </div>
+    <div class="income-month-picker">
+      <a href="<?= e($previousMonthUrl . '#monthly') ?>">Previous month</a>
+      <form method="get" action="<?= e(base_url('admin/airbnb-expenses.php')) ?>#monthly"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Expense month<input type="month" name="month" value="<?= e($selectedMonth) ?>" onchange="this.form.submit()"></label></form>
+      <a href="<?= e($nextMonthUrl . '#monthly') ?>">Next month</a>
     </div>
     <div class="recurring-grid"><?php foreach($recurring as $cost):?><article class="recurring-card <?=$cost['active']?'':'inactive'?>"><div><small><?=e($cost['category'])?></small><strong><?=e($cost['name'])?></strong></div><b><?= $cost['typical_amount']!==null?money((float)$cost['typical_amount']):'Amount needed' ?><small>/<?=e($cost['frequency'])?></small></b>
       <details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_recurring"><input type="hidden" name="id" value="<?=$cost['id']?>"><label>Category<input name="category" value="<?=e($cost['category'])?>" required></label><label>Name<input name="name" value="<?=e($cost['name'])?>" required></label><label>Amount<input type="number" step="0.01" min="0" name="typical_amount" value="<?=e((string)$cost['typical_amount'])?>"></label><label>Frequency<select name="frequency"><?php foreach(['weekly','monthly','quarterly','annual'] as $frequency):?><option <?=$cost['frequency']===$frequency?'selected':''?>><?=e($frequency)?></option><?php endforeach;?></select></label><label class="check"><input type="checkbox" name="active" <?=$cost['active']?'checked':''?>> Active</label><label class="wide">Notes<input name="notes" value="<?=e($cost['notes'])?>"></label><button>Save</button></form><form method="post" class="delete-form" onsubmit="return confirm('Delete this recurring cost?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_recurring"><input type="hidden" name="id" value="<?=$cost['id']?>"><button>Delete</button></form></details>
