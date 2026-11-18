@@ -7,6 +7,7 @@ $rehabOnly = defined('MAVREI_REHAB_ONLY') && MAVREI_REHAB_ONLY === true;
 $notesOnly = defined('MAVREI_NOTES_ONLY') && MAVREI_NOTES_ONLY === true;
 $expensesOnly = defined('MAVREI_EXPENSES_ONLY') && MAVREI_EXPENSES_ONLY === true;
 $incomeOnly = defined('MAVREI_INCOME_ONLY') && MAVREI_INCOME_ONLY === true;
+$trackerHome = !$rehabOnly && !$notesOnly && !$expensesOnly && !$incomeOnly;
 
 function ensure_airbnb_schema(): void
 {
@@ -358,6 +359,33 @@ $stmt = db()->prepare('SELECT * FROM airbnb_reference_notes WHERE property_id=? 
 $rehabActual = array_sum(array_map(fn($i)=>(float)($i['actual_cost'] ?? 0), $rehab));
 $rehabDone = count(array_filter($rehab, fn($i)=>in_array($i['status'], ['purchased','completed'], true)));
 $rehabRemaining = count(array_filter($rehab, fn($i)=>!in_array($i['status'], ['purchased','completed','skipped'], true)));
+$stmt = db()->prepare('SELECT COALESCE(SUM(amount),0) FROM airbnb_monthly_expenses WHERE property_id=?');
+$stmt->execute([$propertyId]);
+$allTimeOperatingExpenses = (float) $stmt->fetchColumn();
+$stmt = db()->prepare('SELECT COALESCE(SUM(net_payout),0) FROM vacation_rental_income WHERE property_id=?');
+$stmt->execute([$propertyId]);
+$allTimeIncome = (float) $stmt->fetchColumn();
+$allTimeExpenses = $allTimeOperatingExpenses + $rehabActual;
+$allTimeCashFlow = $allTimeIncome - $allTimeExpenses;
+$trackerChartData = [];
+$chartYear = filter_input(INPUT_GET, 'year', FILTER_VALIDATE_INT, ['options'=>['min_range'=>2000, 'max_range'=>2100]]) ?: (int) date('Y');
+if ($trackerHome) {
+    $chartStart = new DateTimeImmutable($chartYear . '-01-01');
+    $chartAfter = $chartStart->modify('+1 year');
+    $stmt = db()->prepare("SELECT DATE_FORMAT(COALESCE(payout_date,check_in),'%Y-%m') AS report_month, SUM(COALESCE(net_payout,0)) AS total FROM vacation_rental_income WHERE property_id=? AND COALESCE(payout_date,check_in)>=? AND COALESCE(payout_date,check_in)<? GROUP BY report_month");
+    $stmt->execute([$propertyId, $chartStart->format('Y-m-d'), $chartAfter->format('Y-m-d')]);
+    $chartIncome = [];
+    foreach ($stmt->fetchAll() as $row) $chartIncome[(string) $row['report_month']] = (float) $row['total'];
+    $stmt = db()->prepare("SELECT DATE_FORMAT(expense_month,'%Y-%m') AS report_month, SUM(COALESCE(amount,0)) AS total FROM airbnb_monthly_expenses WHERE property_id=? AND expense_month>=? AND expense_month<? GROUP BY report_month");
+    $stmt->execute([$propertyId, $chartStart->format('Y-m-d'), $chartAfter->format('Y-m-d')]);
+    $chartExpenses = [];
+    foreach ($stmt->fetchAll() as $row) $chartExpenses[(string) $row['report_month']] = (float) $row['total'];
+    for ($index = 0; $index < 12; $index++) {
+        $month = $chartStart->modify('+' . $index . ' months');
+        $key = $month->format('Y-m');
+        $trackerChartData[] = ['month'=>$key, 'label'=>$month->format('M'), 'income'=>$chartIncome[$key] ?? 0, 'expenses'=>$chartExpenses[$key] ?? 0];
+    }
+}
 $monthlyBaseline = 0.0;
 foreach ($recurring as $cost) if ($cost['active'] && $cost['typical_amount'] !== null) {
     $amount = (float) $cost['typical_amount'];
@@ -396,6 +424,8 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v53.css?v=20261108-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v54.css?v=20261118-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v55.css?v=20261118-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v56.css?v=20261118-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v57.css?v=20261118-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -407,13 +437,17 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <?php if (isset($_GET['saved'])): ?><p class="alert success">Changes saved.</p><?php endif; ?>
   <?php if ($error): ?><p class="alert error"><?= e($error) ?></p><?php endif; ?>
 
-  <?php if (!$notesOnly && !$incomeOnly): ?><section class="metric-grid compact-metrics">
+  <?php if (!$notesOnly && !$incomeOnly): ?><section class="metric-grid <?= (!$rehabOnly && !$expensesOnly) ? 'tracker-overview-metrics' : 'compact-metrics' ?>">
     <?php if ($rehabOnly): ?>
     <article><span>Rehab spent</span><strong><?= money($rehabActual) ?></strong><small><?= $rehabDone ?> of <?= count($rehab) ?> items purchased or complete</small></article>
     <article><span>Rehab progress</span><strong><?= $rehabDone ?> / <?= count($rehab) ?></strong><small><?= $rehabRemaining ?> item<?= $rehabRemaining === 1 ? '' : 's' ?> still planned or in progress</small></article>
-    <?php else: ?>
+    <?php elseif ($expensesOnly): ?>
     <article><span>Recurring monthly</span><strong><?= money($monthlyBaseline) ?></strong><small>Monthly equivalent of active costs</small></article>
     <article><span><?= e(date('F Y', strtotime($monthDate))) ?></span><strong><?= money($monthActual) ?></strong><small><?= $monthPending ?> amount<?= $monthPending === 1 ? '' : 's' ?> still pending</small></article>
+    <?php else: ?>
+    <article><span>All-time income</span><strong><?= vacation_income_display_money($allTimeIncome) ?></strong><small>Net payouts from all recorded bookings</small></article>
+    <article><span>All-time expenses</span><strong><?= vacation_income_display_money($allTimeExpenses) ?></strong><small><?= vacation_income_display_money($allTimeOperatingExpenses) ?> operating + <?= vacation_income_display_money($rehabActual) ?> setup and rehab</small></article>
+    <article class="<?= $allTimeCashFlow < 0 ? 'negative' : 'positive' ?>"><span>All-time cash flow</span><strong><?= vacation_income_display_money($allTimeCashFlow) ?></strong><small>Income minus all recorded expenses</small></article>
     <?php endif; ?>
   </section><?php endif; ?>
 
@@ -427,6 +461,13 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Back to tracker</a><a href="#income">Income</a></nav>
   <?php else: ?>
   <nav class="section-nav tracker-link-menu"><a href="<?= e(base_url('admin/airbnb-expenses.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Monthly expenses</a><a href="<?= e(base_url('admin/airbnb-income.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Income</a><a href="<?= e(base_url('admin/airbnb-notes.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Property notes</a><a href="<?= e(base_url('admin/airbnb-rehab.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Setup &amp; rehab</a></nav>
+  <?php endif; ?>
+
+  <?php if ($trackerHome): ?>
+  <section class="tracker-chart-card" aria-labelledby="tracker-chart-title">
+    <div class="tracker-chart-heading"><div><p class="eyebrow">Calendar year</p><h2 id="tracker-chart-title">Income vs. expenses</h2></div><div class="tracker-chart-controls"><form method="get"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Year<input type="number" name="year" min="2000" max="2100" value="<?= (int) $chartYear ?>" onchange="this.form.submit()"></label></form><div class="tracker-chart-legend"><span class="income-line">Income</span><span class="expense-line">Expenses</span></div></div></div>
+    <div id="tracker-cashflow-chart" class="tracker-chart" data-points="<?= e(json_encode($trackerChartData, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)) ?>" role="img" aria-label="Line chart comparing monthly net income and operating expenses for calendar year <?= (int) $chartYear ?>"></div>
+  </section>
   <?php endif; ?>
 
   <div id="tracker-sections">
@@ -565,6 +606,48 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     }
     document.querySelector('.add-panel[open] .add-expense-cancel')?.click();
   });
+
+  const trackerChart = document.getElementById('tracker-cashflow-chart');
+  if (trackerChart) {
+    const points = JSON.parse(trackerChart.dataset.points || '[]');
+    const moneyLabel = value => value >= 1000000 ? '$' + (value / 1000000).toFixed(1) + 'm' : value >= 1000 ? '$' + (value / 1000).toFixed(value >= 10000 ? 0 : 1) + 'k' : '$' + Math.round(value);
+    const exactMoney = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+    const niceMaximum = value => {
+      if (value <= 0) return 100;
+      const power = 10 ** Math.floor(Math.log10(value));
+      const fraction = value / power;
+      return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * power;
+    };
+    const renderChart = () => {
+      const width = Math.max(320, trackerChart.clientWidth || 1000);
+      const height = width < 650 ? 320 : 390;
+      const margin = { top: 20, right: 24, bottom: 48, left: width < 500 ? 54 : 68 };
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+      const maximum = niceMaximum(Math.max(100, ...points.flatMap(point => [Number(point.income) || 0, Number(point.expenses) || 0])));
+      const x = index => margin.left + (plotWidth * index / Math.max(1, points.length - 1));
+      const y = value => margin.top + plotHeight - ((Number(value) || 0) / maximum * plotHeight);
+      const pathFor = key => points.map((point, index) => `${index ? 'L' : 'M'} ${x(index).toFixed(1)} ${y(point[key]).toFixed(1)}`).join(' ');
+      let markup = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">`;
+      for (let line = 0; line <= 4; line++) {
+        const value = maximum * (4 - line) / 4;
+        const lineY = margin.top + plotHeight * line / 4;
+        markup += `<line x1="${margin.left}" y1="${lineY}" x2="${width - margin.right}" y2="${lineY}" stroke="#dce3e8" stroke-width="1"/><text x="${margin.left - 10}" y="${lineY + 4}" text-anchor="end" fill="#66758a" font-size="11">${moneyLabel(value)}</text>`;
+      }
+      points.forEach((point, index) => {
+        if (width >= 620 || index % 2 === 0) markup += `<text x="${x(index)}" y="${height - 16}" text-anchor="middle" fill="#66758a" font-size="11" font-weight="700">${point.label}</text>`;
+      });
+      markup += `<path d="${pathFor('income')}" fill="none" stroke="#16704c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathFor('expenses')}" fill="none" stroke="#c40022" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+      points.forEach((point, index) => {
+        markup += `<circle cx="${x(index)}" cy="${y(point.income)}" r="5" fill="#fff" stroke="#16704c" stroke-width="3"><title>${point.label}: Income ${exactMoney(point.income)}</title></circle>`;
+        markup += `<circle cx="${x(index)}" cy="${y(point.expenses)}" r="5" fill="#fff" stroke="#c40022" stroke-width="3"><title>${point.label}: Expenses ${exactMoney(point.expenses)}</title></circle>`;
+      });
+      trackerChart.innerHTML = markup + '</svg>';
+    };
+    renderChart();
+    if ('ResizeObserver' in window) new ResizeObserver(renderChart).observe(trackerChart);
+    else window.addEventListener('resize', renderChart);
+  }
 
   const rehabSection = document.getElementById('rehab');
   const areaOrderAnchor = document.getElementById('rehab-reorder-form');
