@@ -1,5 +1,5 @@
 <section id="income" class="tracker-section">
-  <div class="section-heading"><div><p class="eyebrow">Bookings and payouts</p><h2>Income</h2><p>Track Airbnb, Vrbo, direct-booking, and other vacation-rental income. Imports are assigned by their own payout or stay date, regardless of the month currently displayed.</p></div></div>
+  <div class="section-heading"><div><p class="eyebrow">Bookings and payouts</p><h2>Income</h2></div></div>
   <?php if (isset($_GET['added'])): ?><p class="alert success">Import complete: <?= (int) $_GET['added'] ?> added, <?= (int) ($_GET['updated'] ?? 0) ?> updated, <?= (int) ($_GET['unchanged'] ?? 0) ?> unchanged, and <?= (int) ($_GET['skipped'] ?? 0) ?> payout-transfer or unrecognized row<?= (int) ($_GET['skipped'] ?? 0) === 1 ? '' : 's' ?> skipped.</p><?php endif; ?>
   <div class="income-month-picker">
     <a href="<?= e($previousMonthUrl . '#income') ?>">Previous month</a>

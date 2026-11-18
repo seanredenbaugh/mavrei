@@ -426,13 +426,13 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   </section><?php endif; ?>
 
   <?php if ($rehabOnly): ?>
-  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Back to costs / income</a><a href="#rehab">Setup &amp; rehab</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
+  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Back to costs / income</a><a href="#rehab">Setup &amp; rehab</a></nav>
   <?php elseif ($notesOnly): ?>
-  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Back to costs / income</a><a href="#reference">Property notes</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
+  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Back to costs / income</a><a href="#reference">Property notes</a></nav>
   <?php elseif ($expensesOnly): ?>
-  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Back to tracker</a><a href="#monthly">Monthly expenses</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
+  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Back to tracker</a><a href="#monthly">Monthly expenses</a></nav>
   <?php elseif ($incomeOnly): ?>
-  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Back to tracker</a><a href="#income">Income</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
+  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Back to tracker</a><a href="#income">Income</a></nav>
   <?php else: ?>
   <nav class="section-nav tracker-link-menu"><a href="<?= e(base_url('admin/airbnb-expenses.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Monthly expenses</a><a href="<?= e(base_url('admin/airbnb-income.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Income</a><a href="<?= e(base_url('admin/airbnb-notes.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Property notes</a><a href="<?= e(base_url('admin/airbnb-rehab.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Setup &amp; rehab</a></nav>
   <?php endif; ?>
@@ -509,29 +509,6 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   const prefix = 'mavrei-vacation-rental-<?= (int) $propertyId ?>:';
   const readState = key => { try { return localStorage.getItem(prefix + key); } catch (error) { return null; } };
   const saveState = (key, value) => { try { localStorage.setItem(prefix + key, value); } catch (error) {} };
-  const sectionsContainer = document.getElementById('tracker-sections');
-  const sectionNav = document.querySelector('.section-nav');
-  const collapseAllButton = document.getElementById('collapse-all-sections');
-
-  const currentSections = () => Array.from(sectionsContainer?.querySelectorAll(':scope > .tracker-section') || []);
-  const syncSectionNavigation = () => {
-    currentSections().forEach(section => {
-      const link = sectionNav?.querySelector(`a[href="#${section.id}"]`);
-      if (link) sectionNav.insertBefore(link, collapseAllButton);
-    });
-  };
-  const storedSectionOrder = (readState('section-order') || '').split(',').filter(Boolean);
-  const availableSections = new Map(currentSections().map(section => [section.id, section]));
-  storedSectionOrder.forEach(id => {
-    const section = availableSections.get(id);
-    if (section) {
-      sectionsContainer.append(section);
-      availableSections.delete(id);
-    }
-  });
-  availableSections.forEach(section => sectionsContainer?.append(section));
-  syncSectionNavigation();
-
   document.querySelectorAll('.row-actions').forEach(actions => {
     const editForm = actions.querySelector(':scope > .edit-grid');
     const deleteForm = actions.querySelector(':scope > .delete-form');
@@ -590,92 +567,6 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       return;
     }
     document.querySelector('.add-panel[open] .add-expense-cancel')?.click();
-  });
-
-  const updateCollapseAllButton = () => {
-    if (!collapseAllButton) return;
-    const sections = currentSections();
-    const allCollapsed = sections.length > 0 && sections.every(section => section.classList.contains('is-collapsed'));
-    collapseAllButton.textContent = allCollapsed ? 'Expand all' : 'Collapse all';
-    collapseAllButton.setAttribute('aria-expanded', String(!allCollapsed));
-  };
-
-  document.querySelectorAll('.tracker-section').forEach(section => {
-    const heading = section.querySelector(':scope > .section-heading');
-    if (!heading) return;
-    const dragHandle = document.createElement('span');
-    dragHandle.className = 'section-drag-handle';
-    dragHandle.draggable = true;
-    dragHandle.title = 'Drag to reorder section';
-    dragHandle.setAttribute('role', 'button');
-    dragHandle.setAttribute('tabindex', '0');
-    dragHandle.setAttribute('aria-label', `Drag ${section.querySelector('h2')?.textContent || 'section'} to reorder`);
-    dragHandle.textContent = '⋮⋮';
-    heading.prepend(dragHandle);
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'collapse-toggle';
-    const apply = (collapsed, remember = true) => {
-      section.classList.toggle('is-collapsed', collapsed);
-      button.setAttribute('aria-expanded', String(!collapsed));
-      button.innerHTML = `<span aria-hidden="true">${collapsed ? '＋' : '−'}</span>${collapsed ? 'Expand' : 'Collapse'}`;
-      if (remember) saveState('section:' + section.id, collapsed ? 'closed' : 'open');
-      updateCollapseAllButton();
-    };
-    button.addEventListener('click', () => apply(!section.classList.contains('is-collapsed')));
-    heading.append(button);
-    apply(readState('section:' + section.id) === 'closed', false);
-  });
-
-  collapseAllButton?.addEventListener('click', () => {
-    const sections = currentSections();
-    const shouldCollapse = !sections.every(section => section.classList.contains('is-collapsed'));
-    sections.forEach(section => {
-      if (section.classList.contains('is-collapsed') !== shouldCollapse) {
-        section.querySelector(':scope > .section-heading > .collapse-toggle')?.click();
-      }
-    });
-    updateCollapseAllButton();
-  });
-
-  let draggedSection = null;
-  document.querySelectorAll('.section-drag-handle').forEach(handle => {
-    handle.addEventListener('dragstart', event => {
-      draggedSection = handle.closest('.tracker-section');
-      if (!draggedSection) {
-        event.preventDefault();
-        return;
-      }
-      draggedSection.classList.add('is-section-dragging');
-      sectionsContainer?.classList.add('is-reordering-sections');
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', draggedSection.id);
-    });
-    handle.addEventListener('dragend', () => {
-      draggedSection?.classList.remove('is-section-dragging');
-      sectionsContainer?.classList.remove('is-reordering-sections');
-      currentSections().forEach(section => section.classList.remove('is-section-drop-target'));
-      draggedSection = null;
-    });
-  });
-
-  sectionsContainer?.addEventListener('dragover', event => {
-    if (!draggedSection) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    const target = event.target.closest('.tracker-section');
-    currentSections().forEach(section => section.classList.remove('is-section-drop-target'));
-    if (!target || target === draggedSection || target.parentElement !== sectionsContainer) return;
-    target.classList.add('is-section-drop-target');
-    const rect = target.getBoundingClientRect();
-    sectionsContainer.insertBefore(draggedSection, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
-  });
-
-  sectionsContainer?.addEventListener('drop', event => {
-    if (!draggedSection) return;
-    event.preventDefault();
-    saveState('section-order', currentSections().map(section => section.id).join(','));
-    syncSectionNavigation();
   });
 
   const rehabSection = document.getElementById('rehab');
@@ -752,19 +643,6 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     heading.append(button);
     apply(readState('room:' + area) === 'closed', false);
   });
-
-  document.querySelectorAll('.section-nav a[href^="#"]').forEach(link => {
-    link.addEventListener('click', () => {
-      const section = document.querySelector(link.getAttribute('href'));
-      const button = section?.querySelector(':scope > .section-heading > .collapse-toggle');
-      if (section?.classList.contains('is-collapsed')) button?.click();
-    });
-  });
-
-  const anchoredSection = document.getElementById(window.location.hash.slice(1));
-  if (anchoredSection?.classList.contains('is-collapsed')) {
-    anchoredSection.querySelector(':scope > .section-heading > .collapse-toggle')?.click();
-  }
 
   const reorderForm = document.getElementById('rehab-reorder-form');
   let draggedRow = null;
