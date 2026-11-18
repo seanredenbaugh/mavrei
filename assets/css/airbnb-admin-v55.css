@@ -1,0 +1,14 @@
+.metric-grid.compact-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rehab-archive-link {
+  border: 1px solid #e5c76d;
+  background: #fff9e7;
+}
+
+@media (max-width: 720px) {
+  .metric-grid.compact-metrics {
+    grid-template-columns: 1fr;
+  }
+}

@@ -177,11 +177,31 @@ CREATE TABLE vacation_rental_income (
     status VARCHAR(30) NOT NULL DEFAULT 'paid',
     notes TEXT NULL,
     source_type VARCHAR(20) NOT NULL DEFAULT 'manual',
+    source_key VARCHAR(190) NULL,
     source_hash CHAR(64) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_vacation_income_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_vacation_income_source_key (property_id, platform, source_key),
     UNIQUE KEY uq_vacation_income_source (source_hash),
     INDEX idx_vacation_income_month (property_id, payout_date),
     INDEX idx_vacation_income_stay (property_id, check_in)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE vacation_income_imports (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    property_id INT UNSIGNED NOT NULL,
+    platform VARCHAR(30) NOT NULL,
+    file_name VARCHAR(190) NOT NULL,
+    file_hash CHAR(64) NOT NULL,
+    rows_total INT UNSIGNED NOT NULL DEFAULT 0,
+    rows_added INT UNSIGNED NOT NULL DEFAULT 0,
+    rows_updated INT UNSIGNED NOT NULL DEFAULT 0,
+    rows_unchanged INT UNSIGNED NOT NULL DEFAULT 0,
+    rows_skipped INT UNSIGNED NOT NULL DEFAULT 0,
+    payout_total DECIMAL(12,2) NULL,
+    payout_references TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_vacation_import_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+    INDEX idx_vacation_import_property (property_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
