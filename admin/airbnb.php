@@ -666,8 +666,11 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       trackerChart.innerHTML = markup + '</svg>';
     };
     renderChart();
-    if ('ResizeObserver' in window) new ResizeObserver(renderChart).observe(trackerChart);
-    else window.addEventListener('resize', renderChart);
+    let chartResizeTimer = null;
+    window.addEventListener('resize', () => {
+      window.clearTimeout(chartResizeTimer);
+      chartResizeTimer = window.setTimeout(renderChart, 120);
+    });
   }
 
   const rehabSection = document.getElementById('rehab');
