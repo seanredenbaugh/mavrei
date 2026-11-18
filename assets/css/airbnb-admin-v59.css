@@ -1,0 +1,17 @@
+@media (min-width: 1000px) {
+  .metric-grid.tracker-overview-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 651px) and (max-width: 999px) {
+  .metric-grid.tracker-overview-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 650px) {
+  .metric-grid.tracker-overview-metrics {
+    grid-template-columns: 1fr !important;
+  }
+}
