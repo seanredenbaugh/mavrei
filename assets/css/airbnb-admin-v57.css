@@ -63,8 +63,8 @@
   vertical-align: middle;
 }
 
-.tracker-chart-legend .income-line::before { background: #16704c; }
-.tracker-chart-legend .upcoming-line::before { background: repeating-linear-gradient(90deg, #4b9fc4 0 8px, transparent 8px 12px); }
+.tracker-chart-legend .income-line::before { border: 2px solid #0f5236; background: #16704c; }
+.tracker-chart-legend .upcoming-line::before { border: 2px dashed #4f9f6e; background: #8fd3a9; }
 .tracker-chart-legend .expense-line::before { background: #c40022; }
 
 .tracker-chart {

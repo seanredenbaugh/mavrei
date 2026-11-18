@@ -475,8 +475,8 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 
   <?php if ($trackerHome): ?>
   <section class="tracker-chart-card" aria-labelledby="tracker-chart-title">
-    <div class="tracker-chart-heading"><div><p class="eyebrow">Calendar year</p><h2 id="tracker-chart-title">Income vs. expenses</h2></div><div class="tracker-chart-controls"><form method="get"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Year<input type="number" name="year" min="2000" max="2100" value="<?= (int) $chartYear ?>" onchange="this.form.submit()"></label></form><div class="tracker-chart-legend"><span class="income-line">Income</span><span class="upcoming-line">Upcoming</span><span class="expense-line">Expenses</span></div></div></div>
-    <div id="tracker-cashflow-chart" class="tracker-chart" data-points="<?= e(json_encode($trackerChartData, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)) ?>" role="img" aria-label="Line chart comparing monthly net income, upcoming income, and operating expenses for calendar year <?= (int) $chartYear ?>"></div>
+    <div class="tracker-chart-heading"><div><p class="eyebrow">Calendar year</p><h2 id="tracker-chart-title">Income and expenses by month</h2></div><div class="tracker-chart-controls"><form method="get"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Year<input type="number" name="year" min="2000" max="2100" value="<?= (int) $chartYear ?>" onchange="this.form.submit()"></label></form><div class="tracker-chart-legend"><span class="income-line">Income</span><span class="upcoming-line">Potential income</span><span class="expense-line">Expenses</span></div></div></div>
+    <div id="tracker-cashflow-chart" class="tracker-chart" data-points="<?= e(json_encode($trackerChartData, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)) ?>" role="img" aria-label="Bar chart comparing monthly net income, stacked upcoming income, and operating expenses for calendar year <?= (int) $chartYear ?>"></div>
   </section>
   <?php endif; ?>
 
@@ -634,10 +634,13 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       const margin = { top: 20, right: 24, bottom: 48, left: width < 500 ? 54 : 68 };
       const plotWidth = width - margin.left - margin.right;
       const plotHeight = height - margin.top - margin.bottom;
-      const maximum = niceMaximum(Math.max(100, ...points.flatMap(point => [Number(point.income) || 0, Number(point.upcoming) || 0, Number(point.expenses) || 0])));
-      const x = index => margin.left + (plotWidth * index / Math.max(1, points.length - 1));
+      const maximum = niceMaximum(Math.max(100, ...points.flatMap(point => [(Number(point.income) || 0) + (Number(point.upcoming) || 0), Number(point.expenses) || 0])));
+      const x = index => margin.left + (plotWidth * (index + .5) / Math.max(1, points.length));
       const y = value => margin.top + plotHeight - ((Number(value) || 0) / maximum * plotHeight);
-      const pathFor = key => points.map((point, index) => `${index ? 'L' : 'M'} ${x(index).toFixed(1)} ${y(point[key]).toFixed(1)}`).join(' ');
+      const groupWidth = plotWidth / Math.max(1, points.length);
+      const barWidth = Math.max(8, Math.min(34, groupWidth * .32));
+      const barGap = Math.max(4, Math.min(9, groupWidth * .08));
+      const baseline = y(0);
       let markup = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">`;
       for (let line = 0; line <= 4; line++) {
         const value = maximum * (4 - line) / 4;
@@ -647,11 +650,18 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       points.forEach((point, index) => {
         if (width >= 620 || index % 2 === 0) markup += `<text x="${x(index)}" y="${height - 16}" text-anchor="middle" fill="#66758a" font-size="11" font-weight="700">${point.label}</text>`;
       });
-      markup += `<path d="${pathFor('income')}" fill="none" stroke="#16704c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathFor('upcoming')}" fill="none" stroke="#4b9fc4" stroke-width="4" stroke-dasharray="9 7" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathFor('expenses')}" fill="none" stroke="#c40022" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
       points.forEach((point, index) => {
-        markup += `<circle cx="${x(index)}" cy="${y(point.income)}" r="5" fill="#fff" stroke="#16704c" stroke-width="3"><title>${point.label}: Income ${exactMoney(point.income)}</title></circle>`;
-        markup += `<circle cx="${x(index)}" cy="${y(point.upcoming)}" r="5" fill="#fff" stroke="#4b9fc4" stroke-width="3"><title>${point.label}: Upcoming ${exactMoney(point.upcoming)}</title></circle>`;
-        markup += `<circle cx="${x(index)}" cy="${y(point.expenses)}" r="5" fill="#fff" stroke="#c40022" stroke-width="3"><title>${point.label}: Expenses ${exactMoney(point.expenses)}</title></circle>`;
+        const income = Number(point.income) || 0;
+        const upcoming = Number(point.upcoming) || 0;
+        const projected = income + upcoming;
+        const expenses = Number(point.expenses) || 0;
+        const incomeX = x(index) - barGap / 2 - barWidth;
+        const expenseX = x(index) + barGap / 2;
+        if (income > 0) markup += `<rect x="${incomeX}" y="${y(income)}" width="${barWidth}" height="${Math.max(0, baseline - y(income))}" rx="4" fill="#16704c" stroke="#0f5236" stroke-width="2"><title>${point.label}: Actual income ${exactMoney(income)}</title></rect>`;
+        if (upcoming > 0) markup += `<rect x="${incomeX}" y="${y(projected)}" width="${barWidth}" height="${Math.max(0, y(income) - y(projected))}" rx="4" fill="#8fd3a9" stroke="#4f9f6e" stroke-width="2" stroke-dasharray="4 3"><title>${point.label}: Potential income ${exactMoney(upcoming)}; projected total ${exactMoney(projected)}</title></rect>`;
+        if (expenses > 0) markup += `<rect x="${expenseX}" y="${y(expenses)}" width="${barWidth}" height="${Math.max(0, baseline - y(expenses))}" rx="4" fill="#c40022"><title>${point.label}: Expenses ${exactMoney(expenses)}</title></rect>`;
+        if (width >= 760 && projected > 0) markup += `<text x="${incomeX + barWidth / 2}" y="${Math.max(12, y(projected) - 7)}" text-anchor="middle" fill="#33506a" font-size="10" font-weight="800">${moneyLabel(projected)}</text>`;
+        if (width >= 760 && expenses > 0) markup += `<text x="${expenseX + barWidth / 2}" y="${Math.max(12, y(expenses) - 7)}" text-anchor="middle" fill="#8f1830" font-size="10" font-weight="800">${moneyLabel(expenses)}</text>`;
       });
       trackerChart.innerHTML = markup + '</svg>';
     };
