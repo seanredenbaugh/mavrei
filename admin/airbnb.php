@@ -4,6 +4,7 @@ require dirname(__DIR__) . '/app/bootstrap.php';
 require_admin();
 require_once APP_ROOT . '/app/vacation-income-support.php';
 $rehabOnly = defined('MAVREI_REHAB_ONLY') && MAVREI_REHAB_ONLY === true;
+$notesOnly = defined('MAVREI_NOTES_ONLY') && MAVREI_NOTES_ONLY === true;
 
 function ensure_airbnb_schema(): void
 {
@@ -211,9 +212,9 @@ $nextMonthLabel = $monthObject->modify('+1 month')->format('M Y');
 $previousMonthUrl = base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId, 'month'=>$previousMonth]));
 $nextMonthUrl = base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId, 'month'=>$nextMonth]));
 $currentMonthUrl = base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId, 'month'=>$currentMonth]));
-$activePage = $rehabOnly ? 'admin/airbnb-rehab.php' : 'admin/airbnb.php';
+$activePage = $rehabOnly ? 'admin/airbnb-rehab.php' : ($notesOnly ? 'admin/airbnb-notes.php' : 'admin/airbnb.php');
 $activePageQuery = ['property_id'=>$propertyId];
-if (!$rehabOnly) $activePageQuery['month'] = $selectedMonth;
+if (!$rehabOnly && !$notesOnly) $activePageQuery['month'] = $selectedMonth;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -364,8 +365,8 @@ $monthPending = count(array_filter($expenses, fn($i)=>$i['amount'] === null));
 $platforms = vacation_income_platforms();
 $statuses = vacation_income_statuses();
 $incomeSummary = vacation_income_load($propertyId, $monthDate, $monthActual);
-$incomeComparison = $rehabOnly ? [] : vacation_income_monthly_comparison($propertyId, $selectedMonth, 6);
-$incomeImports = $rehabOnly ? [] : vacation_income_import_history($propertyId);
+$incomeComparison = ($rehabOnly || $notesOnly) ? [] : vacation_income_monthly_comparison($propertyId, $selectedMonth, 6);
+$incomeImports = ($rehabOnly || $notesOnly) ? [] : vacation_income_import_history($propertyId);
 $areas = array_values(array_unique(array_column($rehab, 'area')));
 $statusLabels = ['planned'=>'Planned','in_progress'=>'In progress','purchased'=>'Purchased','completed'=>'Completed','skipped'=>'Skipped'];
 function money(float $amount): string { return '$' . number_format($amount, 2); }
@@ -374,7 +375,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><?= $rehabOnly ? 'Setup and rehab' : 'Vacation rental costs &amp; income' ?> | <?= e($property['title']) ?></title>
+  <title><?= $rehabOnly ? 'Setup and rehab' : ($notesOnly ? 'Property notes' : 'Vacation rental costs &amp; income') ?> | <?= e($property['title']) ?></title>
   <link rel="stylesheet" href="<?= e(base_url('assets/css/admin.css?v=20260911-2')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin.css?v=20260914-2')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v22.css?v=20260914-1')) ?>">
@@ -399,8 +400,8 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <nav><a href="<?= e(base_url('admin/')) ?>">Properties</a><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Costs / Income</a><a href="<?= e(base_url('admin/property.php?id=' . $propertyId)) ?>">Property details</a><a href="<?= e(base_url()) ?>">View map</a></nav>
 </header>
 <main class="airbnb-wrap">
-  <div class="airbnb-title"><div><p class="eyebrow"><?= $rehabOnly ? 'Project archive' : 'Vacation rental tracker' ?></p><h1><?= $rehabOnly ? 'Setup and rehab' : e($property['title']) ?></h1><p><?= $rehabOnly ? e($property['title'] . ' · ' . $property['address_line1']) : e($property['address_line1'] . ', ' . $property['city'] . ', ' . $property['state']) . ' · Airbnb / VRBO' ?></p></div></div>
-  <?php if (!$rehabOnly): ?>
+  <div class="airbnb-title"><div><p class="eyebrow"><?= $rehabOnly ? 'Project archive' : ($notesOnly ? 'Quick reference' : 'Vacation rental tracker') ?></p><h1><?= $rehabOnly ? 'Setup and rehab' : ($notesOnly ? 'Property notes' : e($property['title'])) ?></h1><p><?= ($rehabOnly || $notesOnly) ? e($property['title'] . ' · ' . $property['address_line1']) : e($property['address_line1'] . ', ' . $property['city'] . ', ' . $property['state']) . ' · Airbnb / VRBO' ?></p></div></div>
+  <?php if (!$rehabOnly && !$notesOnly): ?>
   <div class="month-browser" aria-label="Choose reporting month">
     <a class="month-step" href="<?= e($previousMonthUrl) ?>"><span aria-hidden="true">‹</span><small>Previous</small><strong><?= e($previousMonthLabel) ?></strong></a>
     <form method="get" class="reporting-month"><input type="hidden" name="property_id" value="<?= $propertyId ?>"><label><span>Viewing month</span><input type="month" name="month" value="<?= e($selectedMonth) ?>" onchange="this.form.submit()"></label></form>
@@ -411,7 +412,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <?php if (isset($_GET['saved'])): ?><p class="alert success">Changes saved.</p><?php endif; ?>
   <?php if ($error): ?><p class="alert error"><?= e($error) ?></p><?php endif; ?>
 
-  <section class="metric-grid compact-metrics">
+  <?php if (!$notesOnly): ?><section class="metric-grid compact-metrics">
     <?php if ($rehabOnly): ?>
     <article><span>Rehab spent</span><strong><?= money($rehabActual) ?></strong><small><?= $rehabDone ?> of <?= count($rehab) ?> items purchased or complete</small></article>
     <article><span>Rehab progress</span><strong><?= $rehabDone ?> / <?= count($rehab) ?></strong><small><?= $rehabRemaining ?> item<?= $rehabRemaining === 1 ? '' : 's' ?> still planned or in progress</small></article>
@@ -419,12 +420,14 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     <article><span>Recurring monthly</span><strong><?= money($monthlyBaseline) ?></strong><small>Monthly equivalent of active costs</small></article>
     <article><span><?= e(date('F Y', strtotime($monthDate))) ?></span><strong><?= money($monthActual) ?></strong><small><?= $monthPending ?> amount<?= $monthPending === 1 ? '' : 's' ?> still pending</small></article>
     <?php endif; ?>
-  </section>
+  </section><?php endif; ?>
 
   <?php if ($rehabOnly): ?>
   <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Back to costs / income</a><a href="#rehab">Setup &amp; rehab</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
+  <?php elseif ($notesOnly): ?>
+  <nav class="section-nav"><a href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$selectedMonth]))) ?>">Back to costs / income</a><a href="#reference">Property notes</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
   <?php else: ?>
-  <nav class="section-nav"><a href="#monthly">Monthly costs</a><a href="#income">Income</a><a href="#reference">Property notes</a><a class="rehab-archive-link" href="<?= e(base_url('admin/airbnb-rehab.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Setup &amp; rehab</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
+  <nav class="section-nav"><a href="#monthly">Monthly costs</a><a href="#income">Income</a><a class="rehab-archive-link" href="<?= e(base_url('admin/airbnb-notes.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Property notes</a><a class="rehab-archive-link" href="<?= e(base_url('admin/airbnb-rehab.php?' . http_build_query(['property_id'=>$propertyId]))) ?>">Setup &amp; rehab</a><button type="button" id="collapse-all-sections">Collapse all</button></nav>
   <?php endif; ?>
 
   <div id="tracker-sections">
@@ -465,6 +468,9 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     </form>
   </section>
 
+  <?php elseif ($notesOnly): ?>
+  <?php include APP_ROOT . '/app/airbnb-property-notes-section.php'; ?>
+
   <?php else: ?>
   <section id="monthly" class="tracker-section">
     <div class="section-heading"><div><p class="eyebrow">Operating costs</p><h2>Monthly expenses</h2><p>Keep standard bills as recurring costs, then record the real amount for each month.</p></div>
@@ -487,9 +493,6 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 
   <?php include APP_ROOT . '/app/vacation-income-section.php'; ?>
 
-  <section id="reference" class="tracker-section"><div class="section-heading"><div><p class="eyebrow">Quick reference</p><h2>Property notes</h2><p>Measurements, paint colors, model numbers, and other details you need while shopping.</p></div><details class="add-panel"><summary>Add reference note</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_note"><label>Category<input name="category" required></label><label>Label<input name="label" required></label><label class="wide">Value<input name="note_value" required></label><button>Save note</button></form></details></div>
-    <div class="reference-grid"><?php foreach($referenceNotes as $note):?><article><small><?=e($note['category'])?></small><strong><?=e($note['label'])?></strong><span><?=e($note['note_value'])?></span><details class="row-actions"><summary>Edit</summary><form method="post" class="edit-grid"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="save_note"><input type="hidden" name="id" value="<?=$note['id']?>"><label>Category<input name="category" value="<?=e($note['category'])?>" required></label><label>Label<input name="label" value="<?=e($note['label'])?>" required></label><label class="wide">Value<input name="note_value" value="<?=e($note['note_value'])?>" required></label><button>Save</button></form><form method="post" class="delete-form" onsubmit="return confirm('Delete this note?')"><input type="hidden" name="csrf_token" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete_note"><input type="hidden" name="id" value="<?=$note['id']?>"><button>Delete</button></form></details></article><?php endforeach;?></div>
-  </section>
   <?php endif; ?>
   </div>
 </main>
