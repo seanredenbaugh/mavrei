@@ -3,7 +3,7 @@
   <?php if (isset($_GET['added'])): ?><p class="alert success">Import complete: <?= (int) $_GET['added'] ?> added, <?= (int) ($_GET['updated'] ?? 0) ?> updated, <?= (int) ($_GET['unchanged'] ?? 0) ?> unchanged, and <?= (int) ($_GET['skipped'] ?? 0) ?> payout-transfer or unrecognized row<?= (int) ($_GET['skipped'] ?? 0) === 1 ? '' : 's' ?> skipped.</p><?php endif; ?>
   <div class="income-month-picker">
     <a href="<?= e($previousMonthUrl . '#income') ?>">Previous month</a>
-    <form method="get" action="<?= e(base_url('admin/airbnb.php')) ?>#income"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Income month<input type="month" name="month" value="<?= e($selectedMonth) ?>" onchange="this.form.submit()"></label></form>
+    <form method="get" action="<?= e(base_url('admin/airbnb-income.php')) ?>#income"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Income month<input type="month" name="month" value="<?= e($selectedMonth) ?>" onchange="this.form.submit()"></label></form>
     <a href="<?= e($nextMonthUrl . '#income') ?>">Next month</a>
   </div>
   <div class="income-metrics">
@@ -25,7 +25,7 @@
     <div class="comparison-heading"><div><p class="eyebrow">Six-month view</p><h3 id="income-comparison-title">Month comparison</h3></div><span>Choose a month to view its transactions</span></div>
     <div class="comparison-table">
       <div class="comparison-row comparison-head"><span>Month</span><span>Gross</span><span>Net</span><span>Expenses</span><span>Cash flow</span><span>Nights</span><span>Stays</span></div>
-      <?php foreach ($incomeComparison as $comparison): ?><a class="comparison-row <?= $comparison['month'] === $selectedMonth ? 'is-current' : '' ?>" href="<?= e(base_url('admin/airbnb.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$comparison['month']])) . '#income') ?>"><strong><?= e($comparison['label']) ?></strong><span><?= vacation_income_display_money($comparison['gross']) ?></span><span><?= vacation_income_display_money($comparison['net']) ?></span><span><?= vacation_income_display_money($comparison['expenses']) ?></span><span class="<?= $comparison['cash_flow'] < 0 ? 'negative-money' : 'positive-money' ?>"><?= vacation_income_display_money($comparison['cash_flow']) ?></span><span><?= (int) $comparison['nights'] ?></span><span><?= (int) $comparison['reservations'] ?></span></a><?php endforeach; ?>
+      <?php foreach ($incomeComparison as $comparison): ?><a class="comparison-row <?= $comparison['month'] === $selectedMonth ? 'is-current' : '' ?>" href="<?= e(base_url('admin/airbnb-income.php?' . http_build_query(['property_id'=>$propertyId,'month'=>$comparison['month']])) . '#income') ?>"><strong><?= e($comparison['label']) ?></strong><span><?= vacation_income_display_money($comparison['gross']) ?></span><span><?= vacation_income_display_money($comparison['net']) ?></span><span><?= vacation_income_display_money($comparison['expenses']) ?></span><span class="<?= $comparison['cash_flow'] < 0 ? 'negative-money' : 'positive-money' ?>"><?= vacation_income_display_money($comparison['cash_flow']) ?></span><span><?= (int) $comparison['nights'] ?></span><span><?= (int) $comparison['reservations'] ?></span></a><?php endforeach; ?>
     </div>
   </section>
 
