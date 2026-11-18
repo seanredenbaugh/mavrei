@@ -1,5 +1,5 @@
 .metric-grid.tracker-overview-metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .metric-grid.tracker-overview-metrics article.positive strong {
@@ -8,6 +8,10 @@
 
 .metric-grid.tracker-overview-metrics article.negative strong {
   color: #b00020;
+}
+
+.metric-grid.tracker-overview-metrics article.upcoming strong {
+  color: #287fa8;
 }
 
 @media (max-width: 900px) {

@@ -199,6 +199,7 @@ CREATE TABLE vacation_income_imports (
     rows_updated INT UNSIGNED NOT NULL DEFAULT 0,
     rows_unchanged INT UNSIGNED NOT NULL DEFAULT 0,
     rows_skipped INT UNSIGNED NOT NULL DEFAULT 0,
+    rows_removed INT UNSIGNED NOT NULL DEFAULT 0,
     payout_total DECIMAL(12,2) NULL,
     payout_references TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

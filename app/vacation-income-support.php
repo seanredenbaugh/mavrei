@@ -54,12 +54,17 @@ function ensure_vacation_income_schema(): void
         rows_updated INT UNSIGNED NOT NULL DEFAULT 0,
         rows_unchanged INT UNSIGNED NOT NULL DEFAULT 0,
         rows_skipped INT UNSIGNED NOT NULL DEFAULT 0,
+        rows_removed INT UNSIGNED NOT NULL DEFAULT 0,
         payout_total DECIMAL(12,2) NULL,
         payout_references TEXT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_vacation_import_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
         INDEX idx_vacation_import_property (property_id, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $importColumns = array_map('strval', db()->query('SHOW COLUMNS FROM vacation_income_imports')->fetchAll(PDO::FETCH_COLUMN));
+    if (!in_array('rows_removed', $importColumns, true)) {
+        db()->exec('ALTER TABLE vacation_income_imports ADD rows_removed INT UNSIGNED NOT NULL DEFAULT 0 AFTER rows_skipped');
+    }
 }
 
 function vacation_income_platforms(): array
@@ -191,8 +196,9 @@ function vacation_income_handle_post(int $propertyId, string $action): array
         throw new RuntimeException('The CSV file has no header row.');
     }
     $headers = array_map(fn($header)=>vacation_income_csv_header((string) $header), $headers);
-    $findByKey = db()->prepare('SELECT id,source_hash FROM vacation_rental_income WHERE property_id=? AND platform=? AND source_key=? LIMIT 1');
-    $findLegacy = db()->prepare('SELECT id,source_hash FROM vacation_rental_income WHERE property_id=? AND platform=? AND reservation_code=? ORDER BY id LIMIT 1');
+    $isPendingSnapshotFormat = in_array('booking status', $headers, true) && !in_array('paid out', $headers, true);
+    $findByKey = db()->prepare('SELECT id,source_hash,status FROM vacation_rental_income WHERE property_id=? AND platform=? AND source_key=? LIMIT 1');
+    $findLegacy = db()->prepare('SELECT id,source_hash,status FROM vacation_rental_income WHERE property_id=? AND platform=? AND reservation_code=? ORDER BY id LIMIT 1');
     $insert = db()->prepare('INSERT INTO vacation_rental_income(property_id,platform,reservation_code,guest_name,booking_date,check_in,check_out,nights,gross_rent,cleaning_fee,taxes_collected,platform_fee,adjustments,net_payout,payout_date,currency,status,notes,source_type,source_key,source_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     $update = db()->prepare('UPDATE vacation_rental_income SET reservation_code=?,guest_name=?,booking_date=?,check_in=?,check_out=?,nights=?,gross_rent=?,cleaning_fee=?,taxes_collected=?,platform_fee=?,adjustments=?,net_payout=?,payout_date=?,currency=?,status=?,notes=?,source_type="csv",source_key=?,source_hash=? WHERE id=? AND property_id=?');
     $added = 0;
@@ -202,6 +208,11 @@ function vacation_income_handle_post(int $propertyId, string $action): array
     $rowsTotal = 0;
     $payoutTotal = 0.0;
     $payoutReferences = [];
+    $reservationRows = 0;
+    $pendingRows = 0;
+    $pendingSourceKeys = [];
+    $hasPayoutRows = false;
+    $removed = 0;
     db()->beginTransaction();
     try {
     while (($cells = fgetcsv($handle)) !== false) {
@@ -212,6 +223,7 @@ function vacation_income_handle_post(int $propertyId, string $action): array
         if (!$row) { $skipped++; continue; }
         $type = strtolower((string) (vacation_income_csv_pick($row, ['type','transaction type','record type']) ?? ''));
         if (str_contains($type, 'payout') || str_contains($type, 'transfer')) {
+            $hasPayoutRows = true;
             $payoutAmount = vacation_income_csv_money(vacation_income_csv_pick($row, ['paid out','payout','net payout','amount']));
             if ($payoutAmount !== null) $payoutTotal += $payoutAmount;
             $payoutReference = vacation_income_csv_pick($row, ['reference code','reference','payout id','transaction id']);
@@ -247,7 +259,8 @@ function vacation_income_handle_post(int $propertyId, string $action): array
         if (!preg_match('/^[A-Z]{3}$/', $currency)) $currency = 'USD';
         if ($net === null || ($payout === null && $checkIn === null)) { $skipped++; continue; }
         $bookingStatus = strtolower((string) (vacation_income_csv_pick($row, ['booking status','reservation status','status']) ?? ''));
-        $status = str_contains($bookingStatus, 'cancel') ? 'cancelled' : (str_contains($bookingStatus, 'refund') ? 'refunded' : (($checkIn && $checkIn > date('Y-m-d')) ? 'upcoming' : 'paid'));
+        $status = str_contains($bookingStatus, 'cancel') ? 'cancelled' : (str_contains($bookingStatus, 'refund') ? 'refunded' : ((str_contains($bookingStatus, 'confirm') || ($checkIn && $checkIn > date('Y-m-d'))) ? 'upcoming' : 'paid'));
+        if ($status === 'upcoming') $payout = null;
         $listing = vacation_income_csv_pick($row, ['listing','property','listing name']);
         $notes = $listing ? 'Listing: ' . substr($listing, 0, 220) : null;
         if ($code !== null) {
@@ -258,6 +271,11 @@ function vacation_income_handle_post(int $propertyId, string $action): array
             $skipped++;
             continue;
         }
+        $reservationRows++;
+        if ($status === 'upcoming') {
+            $pendingRows++;
+            $pendingSourceKeys[] = $sourceKey;
+        }
         $record = [$code,$guest,$booking,$checkIn,$checkOut,$nights,$gross,$cleaning,$taxes,$fee,$adjustments,$net,$payout,$currency,$status,$notes,$sourceKey];
         $sourceHash = hash('sha256', $propertyId . '|' . $platform . '|' . json_encode($record, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
         $findByKey->execute([$propertyId,$platform,$sourceKey]);
@@ -267,6 +285,10 @@ function vacation_income_handle_post(int $propertyId, string $action): array
             $existing = $findLegacy->fetch();
         }
         if ($existing) {
+            if ($status === 'upcoming' && in_array((string) ($existing['status'] ?? ''), ['paid','refunded'], true)) {
+                $unchanged++;
+                continue;
+            }
             if (hash_equals((string) ($existing['source_hash'] ?? ''), $sourceHash)) {
                 $unchanged++;
                 continue;
@@ -278,32 +300,49 @@ function vacation_income_handle_post(int $propertyId, string $action): array
             $added++;
         }
     }
+    if ($isPendingSnapshotFormat && !$hasPayoutRows && $pendingRows === $reservationRows) {
+        $pendingSourceKeys = array_values(array_unique($pendingSourceKeys));
+        $placeholders = implode(',', array_fill(0, count($pendingSourceKeys), '?'));
+        $removeSql = "UPDATE vacation_rental_income SET status='cancelled', source_hash=NULL WHERE property_id=? AND platform=? AND source_type='csv' AND status='upcoming' AND check_in>=CURDATE() AND source_key IS NOT NULL";
+        $removeValues = [$propertyId, $platform];
+        if ($pendingSourceKeys) {
+            $removeSql .= " AND source_key NOT IN ({$placeholders})";
+            $removeValues = [...$removeValues, ...$pendingSourceKeys];
+        }
+        $removeStmt = db()->prepare($removeSql);
+        $removeStmt->execute($removeValues);
+        $removed = $removeStmt->rowCount();
+    }
     fclose($handle);
     $handle = null;
     $fileHash = hash_file('sha256', $temporaryFile) ?: hash('sha256', (string) microtime(true));
     $fileName = substr(basename((string) ($file['name'] ?? 'income.csv')), 0, 190);
-    db()->prepare('INSERT INTO vacation_income_imports(property_id,platform,file_name,file_hash,rows_total,rows_added,rows_updated,rows_unchanged,rows_skipped,payout_total,payout_references) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-        ->execute([$propertyId,$platform,$fileName,$fileHash,$rowsTotal,$added,$updated,$unchanged,$skipped,$payoutReferences ? $payoutTotal : null,$payoutReferences ? implode(', ', array_unique($payoutReferences)) : null]);
+    db()->prepare('INSERT INTO vacation_income_imports(property_id,platform,file_name,file_hash,rows_total,rows_added,rows_updated,rows_unchanged,rows_skipped,rows_removed,payout_total,payout_references) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute([$propertyId,$platform,$fileName,$fileHash,$rowsTotal,$added,$updated,$unchanged,$skipped,$removed,$payoutReferences ? $payoutTotal : null,$payoutReferences ? implode(', ', array_unique($payoutReferences)) : null]);
     db()->commit();
     } catch (Throwable $exception) {
         if (is_resource($handle)) fclose($handle);
         if (db()->inTransaction()) db()->rollBack();
         throw $exception;
     }
-    return ['added'=>$added, 'updated'=>$updated, 'unchanged'=>$unchanged, 'skipped'=>$skipped];
+    return ['added'=>$added, 'updated'=>$updated, 'unchanged'=>$unchanged, 'skipped'=>$skipped, 'removed'=>$removed];
 }
 
 function vacation_income_load(int $propertyId, string $monthStart, float $operatingCosts): array
 {
     $monthEnd = date('Y-m-d', strtotime($monthStart . ' +1 month'));
-    $stmt = db()->prepare('SELECT * FROM vacation_rental_income WHERE property_id=? AND ((payout_date>=? AND payout_date<?) OR (payout_date IS NULL AND check_in>=? AND check_in<?)) ORDER BY COALESCE(payout_date,check_in) DESC,id DESC');
+    $stmt = db()->prepare("SELECT * FROM vacation_rental_income WHERE property_id=? AND status IN ('paid','refunded') AND ((payout_date>=? AND payout_date<?) OR (payout_date IS NULL AND check_in>=? AND check_in<?)) ORDER BY COALESCE(payout_date,check_in) DESC,id DESC");
     $stmt->execute([$propertyId,$monthStart,$monthEnd,$monthStart,$monthEnd]);
     $rows = $stmt->fetchAll();
     $gross = array_sum(array_map(fn($row)=>(float) ($row['gross_rent'] ?? 0) + (float) ($row['cleaning_fee'] ?? 0), $rows));
     $fees = array_sum(array_map(fn($row)=>(float) ($row['platform_fee'] ?? 0), $rows));
     $net = array_sum(array_map(fn($row)=>(float) ($row['net_payout'] ?? 0), $rows));
     $nights = array_sum(array_map(fn($row)=>(int) ($row['nights'] ?? 0), $rows));
-    return ['rows'=>$rows, 'gross'=>$gross, 'fees'=>$fees, 'net'=>$net, 'nights'=>$nights, 'operating_costs'=>$operatingCosts, 'cash_flow'=>$net-$operatingCosts];
+    $upcomingStmt = db()->prepare("SELECT * FROM vacation_rental_income WHERE property_id=? AND status='upcoming' AND check_in>=? AND check_in<? ORDER BY check_in,id");
+    $upcomingStmt->execute([$propertyId,$monthStart,$monthEnd]);
+    $upcomingRows = $upcomingStmt->fetchAll();
+    $upcomingNet = array_sum(array_map(fn($row)=>(float) ($row['net_payout'] ?? 0), $upcomingRows));
+    return ['rows'=>$rows, 'gross'=>$gross, 'fees'=>$fees, 'net'=>$net, 'nights'=>$nights, 'operating_costs'=>$operatingCosts, 'cash_flow'=>$net-$operatingCosts, 'upcoming_rows'=>$upcomingRows, 'upcoming_net'=>$upcomingNet];
 }
 
 function vacation_income_monthly_comparison(int $propertyId, string $selectedMonth, int $months = 6): array
@@ -318,7 +357,7 @@ function vacation_income_monthly_comparison(int $propertyId, string $selectedMon
             SUM(COALESCE(nights,0)) AS nights,
             COUNT(*) AS reservations
         FROM vacation_rental_income
-        WHERE property_id=? AND COALESCE(payout_date,check_in)>=? AND COALESCE(payout_date,check_in)<?
+        WHERE property_id=? AND status IN ('paid','refunded') AND COALESCE(payout_date,check_in)>=? AND COALESCE(payout_date,check_in)<?
         GROUP BY report_month");
     $incomeStmt->execute([$propertyId,$first->format('Y-m-d'),$end->format('Y-m-d')]);
     $income = [];

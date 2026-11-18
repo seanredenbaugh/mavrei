@@ -362,9 +362,12 @@ $rehabRemaining = count(array_filter($rehab, fn($i)=>!in_array($i['status'], ['p
 $stmt = db()->prepare('SELECT COALESCE(SUM(amount),0) FROM airbnb_monthly_expenses WHERE property_id=?');
 $stmt->execute([$propertyId]);
 $allTimeOperatingExpenses = (float) $stmt->fetchColumn();
-$stmt = db()->prepare('SELECT COALESCE(SUM(net_payout),0) FROM vacation_rental_income WHERE property_id=?');
+$stmt = db()->prepare("SELECT COALESCE(SUM(net_payout),0) FROM vacation_rental_income WHERE property_id=? AND status IN ('paid','refunded')");
 $stmt->execute([$propertyId]);
 $allTimeIncome = (float) $stmt->fetchColumn();
+$stmt = db()->prepare("SELECT COALESCE(SUM(net_payout),0) FROM vacation_rental_income WHERE property_id=? AND status='upcoming'");
+$stmt->execute([$propertyId]);
+$upcomingIncome = (float) $stmt->fetchColumn();
 $allTimeExpenses = $allTimeOperatingExpenses + $rehabActual;
 $allTimeCashFlow = $allTimeIncome - $allTimeExpenses;
 $trackerChartData = [];
@@ -372,10 +375,14 @@ $chartYear = filter_input(INPUT_GET, 'year', FILTER_VALIDATE_INT, ['options'=>['
 if ($trackerHome) {
     $chartStart = new DateTimeImmutable($chartYear . '-01-01');
     $chartAfter = $chartStart->modify('+1 year');
-    $stmt = db()->prepare("SELECT DATE_FORMAT(COALESCE(payout_date,check_in),'%Y-%m') AS report_month, SUM(COALESCE(net_payout,0)) AS total FROM vacation_rental_income WHERE property_id=? AND COALESCE(payout_date,check_in)>=? AND COALESCE(payout_date,check_in)<? GROUP BY report_month");
+    $stmt = db()->prepare("SELECT DATE_FORMAT(COALESCE(payout_date,check_in),'%Y-%m') AS report_month, SUM(COALESCE(net_payout,0)) AS total FROM vacation_rental_income WHERE property_id=? AND status IN ('paid','refunded') AND COALESCE(payout_date,check_in)>=? AND COALESCE(payout_date,check_in)<? GROUP BY report_month");
     $stmt->execute([$propertyId, $chartStart->format('Y-m-d'), $chartAfter->format('Y-m-d')]);
     $chartIncome = [];
     foreach ($stmt->fetchAll() as $row) $chartIncome[(string) $row['report_month']] = (float) $row['total'];
+    $stmt = db()->prepare("SELECT DATE_FORMAT(check_in,'%Y-%m') AS report_month, SUM(COALESCE(net_payout,0)) AS total FROM vacation_rental_income WHERE property_id=? AND status='upcoming' AND check_in>=? AND check_in<? GROUP BY report_month");
+    $stmt->execute([$propertyId, $chartStart->format('Y-m-d'), $chartAfter->format('Y-m-d')]);
+    $chartUpcoming = [];
+    foreach ($stmt->fetchAll() as $row) $chartUpcoming[(string) $row['report_month']] = (float) $row['total'];
     $stmt = db()->prepare("SELECT DATE_FORMAT(expense_month,'%Y-%m') AS report_month, SUM(COALESCE(amount,0)) AS total FROM airbnb_monthly_expenses WHERE property_id=? AND expense_month>=? AND expense_month<? GROUP BY report_month");
     $stmt->execute([$propertyId, $chartStart->format('Y-m-d'), $chartAfter->format('Y-m-d')]);
     $chartExpenses = [];
@@ -383,7 +390,7 @@ if ($trackerHome) {
     for ($index = 0; $index < 12; $index++) {
         $month = $chartStart->modify('+' . $index . ' months');
         $key = $month->format('Y-m');
-        $trackerChartData[] = ['month'=>$key, 'label'=>$month->format('M'), 'income'=>$chartIncome[$key] ?? 0, 'expenses'=>$chartExpenses[$key] ?? 0];
+        $trackerChartData[] = ['month'=>$key, 'label'=>$month->format('M'), 'income'=>$chartIncome[$key] ?? 0, 'upcoming'=>$chartUpcoming[$key] ?? 0, 'expenses'=>$chartExpenses[$key] ?? 0];
     }
 }
 $monthlyBaseline = 0.0;
@@ -426,6 +433,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v55.css?v=20261118-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v56.css?v=20261118-1')) ?>">
   <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v57.css?v=20261118-1')) ?>">
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/airbnb-admin-v58.css?v=20261118-1')) ?>">
 </head>
 <body>
 <header class="admin-header">
@@ -446,6 +454,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
     <article><span><?= e(date('F Y', strtotime($monthDate))) ?></span><strong><?= money($monthActual) ?></strong><small><?= $monthPending ?> amount<?= $monthPending === 1 ? '' : 's' ?> still pending</small></article>
     <?php else: ?>
     <article><span>All-time income</span><strong><?= vacation_income_display_money($allTimeIncome) ?></strong><small>Net payouts from all recorded bookings</small></article>
+    <article class="upcoming"><span>Upcoming income</span><strong><?= vacation_income_display_money($upcomingIncome) ?></strong><small>Expected payouts from confirmed reservations</small></article>
     <article><span>All-time expenses</span><strong><?= vacation_income_display_money($allTimeExpenses) ?></strong><small><?= vacation_income_display_money($allTimeOperatingExpenses) ?> operating + <?= vacation_income_display_money($rehabActual) ?> setup and rehab</small></article>
     <article class="<?= $allTimeCashFlow < 0 ? 'negative' : 'positive' ?>"><span>All-time cash flow</span><strong><?= vacation_income_display_money($allTimeCashFlow) ?></strong><small>Income minus all recorded expenses</small></article>
     <?php endif; ?>
@@ -465,8 +474,8 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
 
   <?php if ($trackerHome): ?>
   <section class="tracker-chart-card" aria-labelledby="tracker-chart-title">
-    <div class="tracker-chart-heading"><div><p class="eyebrow">Calendar year</p><h2 id="tracker-chart-title">Income vs. expenses</h2></div><div class="tracker-chart-controls"><form method="get"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Year<input type="number" name="year" min="2000" max="2100" value="<?= (int) $chartYear ?>" onchange="this.form.submit()"></label></form><div class="tracker-chart-legend"><span class="income-line">Income</span><span class="expense-line">Expenses</span></div></div></div>
-    <div id="tracker-cashflow-chart" class="tracker-chart" data-points="<?= e(json_encode($trackerChartData, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)) ?>" role="img" aria-label="Line chart comparing monthly net income and operating expenses for calendar year <?= (int) $chartYear ?>"></div>
+    <div class="tracker-chart-heading"><div><p class="eyebrow">Calendar year</p><h2 id="tracker-chart-title">Income vs. expenses</h2></div><div class="tracker-chart-controls"><form method="get"><input type="hidden" name="property_id" value="<?= (int) $propertyId ?>"><label>Year<input type="number" name="year" min="2000" max="2100" value="<?= (int) $chartYear ?>" onchange="this.form.submit()"></label></form><div class="tracker-chart-legend"><span class="income-line">Income</span><span class="upcoming-line">Upcoming</span><span class="expense-line">Expenses</span></div></div></div>
+    <div id="tracker-cashflow-chart" class="tracker-chart" data-points="<?= e(json_encode($trackerChartData, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)) ?>" role="img" aria-label="Line chart comparing monthly net income, upcoming income, and operating expenses for calendar year <?= (int) $chartYear ?>"></div>
   </section>
   <?php endif; ?>
 
@@ -624,7 +633,7 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       const margin = { top: 20, right: 24, bottom: 48, left: width < 500 ? 54 : 68 };
       const plotWidth = width - margin.left - margin.right;
       const plotHeight = height - margin.top - margin.bottom;
-      const maximum = niceMaximum(Math.max(100, ...points.flatMap(point => [Number(point.income) || 0, Number(point.expenses) || 0])));
+      const maximum = niceMaximum(Math.max(100, ...points.flatMap(point => [Number(point.income) || 0, Number(point.upcoming) || 0, Number(point.expenses) || 0])));
       const x = index => margin.left + (plotWidth * index / Math.max(1, points.length - 1));
       const y = value => margin.top + plotHeight - ((Number(value) || 0) / maximum * plotHeight);
       const pathFor = key => points.map((point, index) => `${index ? 'L' : 'M'} ${x(index).toFixed(1)} ${y(point[key]).toFixed(1)}`).join(' ');
@@ -637,9 +646,10 @@ function money(float $amount): string { return '$' . number_format($amount, 2); 
       points.forEach((point, index) => {
         if (width >= 620 || index % 2 === 0) markup += `<text x="${x(index)}" y="${height - 16}" text-anchor="middle" fill="#66758a" font-size="11" font-weight="700">${point.label}</text>`;
       });
-      markup += `<path d="${pathFor('income')}" fill="none" stroke="#16704c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathFor('expenses')}" fill="none" stroke="#c40022" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+      markup += `<path d="${pathFor('income')}" fill="none" stroke="#16704c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathFor('upcoming')}" fill="none" stroke="#4b9fc4" stroke-width="4" stroke-dasharray="9 7" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathFor('expenses')}" fill="none" stroke="#c40022" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
       points.forEach((point, index) => {
         markup += `<circle cx="${x(index)}" cy="${y(point.income)}" r="5" fill="#fff" stroke="#16704c" stroke-width="3"><title>${point.label}: Income ${exactMoney(point.income)}</title></circle>`;
+        markup += `<circle cx="${x(index)}" cy="${y(point.upcoming)}" r="5" fill="#fff" stroke="#4b9fc4" stroke-width="3"><title>${point.label}: Upcoming ${exactMoney(point.upcoming)}</title></circle>`;
         markup += `<circle cx="${x(index)}" cy="${y(point.expenses)}" r="5" fill="#fff" stroke="#c40022" stroke-width="3"><title>${point.label}: Expenses ${exactMoney(point.expenses)}</title></circle>`;
       });
       trackerChart.innerHTML = markup + '</svg>';
