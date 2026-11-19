@@ -124,11 +124,44 @@ function verify_csrf(): void
     }
 }
 
+function ensure_user_role_schema(): void
+{
+    static $ready = false;
+    if ($ready) return;
+    $columns = array_map('strval', db()->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN));
+    if (!in_array('username', $columns, true)) {
+        db()->exec('ALTER TABLE users ADD username VARCHAR(100) NULL AFTER name');
+    }
+    if (!in_array('role', $columns, true)) {
+        db()->exec("ALTER TABLE users ADD role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash");
+    }
+    $indexes = array_map('strval', db()->query('SHOW INDEX FROM users')->fetchAll(PDO::FETCH_COLUMN, 2));
+    if (!in_array('uq_users_username', $indexes, true)) {
+        db()->exec('ALTER TABLE users ADD UNIQUE KEY uq_users_username (username)');
+    }
+    $adminCount = (int) db()->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
+    if ($adminCount > 0) {
+        $viewer = db()->prepare('SELECT id FROM users WHERE username=? LIMIT 1');
+        $viewer->execute(['havealook']);
+        if (!$viewer->fetchColumn()) {
+            db()->prepare('INSERT INTO users(name,username,email,password_hash,role) VALUES (?,?,?,?,?)')->execute([
+                'Have a Look',
+                'havealook',
+                'havealook@mavrei.local',
+                '$2y$12$5NZrgpGqTB6C6s/rVEyA7O1hA8jawYd5aWahbaNrF6GrxBVepUEzi',
+                'viewer',
+            ]);
+        }
+    }
+    $ready = true;
+}
+
 function clear_admin_auth(bool $expired = false): void
 {
     unset(
         $_SESSION['admin_user_id'],
         $_SESSION['admin_name'],
+        $_SESSION['admin_role'],
         $_SESSION['admin_started_at'],
         $_SESSION['admin_last_activity'],
         $_SESSION['admin_last_checked']
@@ -145,6 +178,7 @@ function establish_admin_session(array $user): void
     session_regenerate_id(true);
     $_SESSION['admin_user_id'] = (int) $user['id'];
     $_SESSION['admin_name'] = (string) $user['name'];
+    $_SESSION['admin_role'] = in_array((string) ($user['role'] ?? 'admin'), ['admin', 'viewer'], true) ? (string) ($user['role'] ?? 'admin') : 'viewer';
     $_SESSION['admin_started_at'] = time();
     $_SESSION['admin_last_activity'] = time();
     $_SESSION['admin_last_checked'] = time();
@@ -172,7 +206,7 @@ function is_admin(): bool
     $lastChecked = (int) ($_SESSION['admin_last_checked'] ?? 0);
     if (($now - $lastChecked) >= ADMIN_USER_RECHECK_INTERVAL) {
         try {
-            $stmt = db()->prepare('SELECT id, name FROM users WHERE id = ? LIMIT 1');
+            $stmt = db()->prepare('SELECT id, name, role FROM users WHERE id = ? LIMIT 1');
             $stmt->execute([$userId]);
             $user = $stmt->fetch();
             if (!$user) {
@@ -180,6 +214,7 @@ function is_admin(): bool
                 return false;
             }
             $_SESSION['admin_name'] = (string) $user['name'];
+            $_SESSION['admin_role'] = in_array((string) ($user['role'] ?? 'viewer'), ['admin', 'viewer'], true) ? (string) $user['role'] : 'viewer';
             $_SESSION['admin_last_checked'] = $now;
         } catch (Throwable $exception) {
             error_log('Admin session validation failed: ' . $exception->getMessage());
@@ -192,8 +227,59 @@ function is_admin(): bool
     return true;
 }
 
+function admin_role(): string
+{
+    return (string) ($_SESSION['admin_role'] ?? 'admin');
+}
+
+function admin_is_viewer(): bool
+{
+    return admin_role() === 'viewer';
+}
+
+function enable_read_only_admin_view(): void
+{
+    static $enabled = false;
+    if ($enabled) return;
+    $enabled = true;
+    ob_start(static function (string $html): string {
+        if (!str_contains(strtolower($html), '<html')) return $html;
+        $style = <<<'HTML'
+<style id="viewer-mode-style">
+.viewer-mode-banner{margin:0;padding:12px 4vw;background:#e9f5fb;border-bottom:1px solid #a9d2e6;color:#244d65;font-weight:800;text-align:center}.admin-read-only form.viewer-write-form{opacity:.72}.admin-read-only form.viewer-write-form input,.admin-read-only form.viewer-write-form select,.admin-read-only form.viewer-write-form textarea,.admin-read-only form.viewer-write-form button{cursor:not-allowed}.admin-read-only [draggable="true"]{cursor:default!important}.admin-read-only .viewer-owner-only{display:none!important}
+</style>
+HTML;
+        $script = <<<'HTML'
+<script id="viewer-mode-script">
+document.addEventListener('DOMContentLoaded',()=>{
+  document.body.classList.add('admin-read-only');
+  const banner=document.createElement('div');
+  banner.className='viewer-mode-banner';
+  banner.textContent='Read-only viewer — changes, uploads, imports, deletes, and reordering are disabled.';
+  const header=document.querySelector('.admin-header');
+  if(header) header.insertAdjacentElement('afterend',banner); else document.body.prepend(banner);
+  document.querySelectorAll('form').forEach(form=>{
+    const method=(form.getAttribute('method')||'get').toLowerCase();
+    const action=form.getAttribute('action')||'';
+    if(method!=='post'||action.includes('/admin/logout.php')) return;
+    form.classList.add('viewer-write-form');
+    form.querySelectorAll('input,select,textarea,button').forEach(control=>control.disabled=true);
+    form.addEventListener('submit',event=>event.preventDefault());
+  });
+  document.querySelectorAll('[draggable="true"]').forEach(item=>item.draggable=false);
+  document.querySelectorAll('a[href*="/admin/account.php"],a[href*="/admin/map-settings.php"],a[href*="/admin/photo-diagnostics.php"],.admin-title>a.button[href*="/admin/property.php"]').forEach(item=>item.classList.add('viewer-owner-only'));
+});
+</script>
+HTML;
+        if (stripos($html, '</head>') !== false) $html = str_ireplace('</head>', $style . '</head>', $html);
+        if (stripos($html, '</body>') !== false) $html = str_ireplace('</body>', $script . '</body>', $html);
+        return $html;
+    });
+}
+
 function require_admin(): void
 {
+    ensure_user_role_schema();
     if (!is_admin()) {
         $requested = (string) ($_SERVER['REQUEST_URI'] ?? '');
         $_SESSION['after_login'] = safe_local_target($requested, base_url('admin/'));
@@ -203,6 +289,20 @@ function require_admin(): void
     header('Cache-Control: no-store, private');
     header('Pragma: no-cache');
     ensure_property_schema();
+    if (admin_is_viewer()) {
+        $script = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+        $allowed = ['index.php','property.php','airbnb.php','airbnb-expenses.php','airbnb-income.php','airbnb-notes.php','airbnb-rehab.php','logout.php'];
+        if (!in_array($script, $allowed, true)) {
+            header('Location: ' . base_url('admin/'));
+            exit;
+        }
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        if (!in_array($method, ['GET', 'HEAD'], true) && $script !== 'logout.php') {
+            http_response_code(403);
+            exit('This viewer account is read-only. Changes are not permitted.');
+        }
+        if ($script !== 'logout.php') enable_read_only_admin_view();
+    }
 }
 
 function safe_local_target(string $target, string $fallback): string
